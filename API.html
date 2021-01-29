@@ -1,0 +1,177 @@
+[ vim: set filetype=Markdown: ]: # (<style type="text/css">body {visibility: hidden} </style>)
+[ vim: set filetype=Markdown: ]: # (<meta charset="utf-8">)
+[ vim: set filetype=Markdown: ]: # (<script charset="utf-8" src="site/Bookmark.js"> </script>)
+[//]: # (---)
+[//]: # (title: API)
+[//]: # (subtitle: API documentation)
+[//]: # (description: Bookmark - Easy Markdown Pages API documentation)
+[//]: # (siteTemplate: siteTemplate.html)
+[//]: # (---)
+
+
+## Configuration Options
+
+The following describe the properties accepted on the `Bookmark` constructor
+which should be initialized in your `siteTemplate.html` file.
+
+```js
+Bookmark.go({
+  stylus: stylusConfig,
+  doc: docConfig,
+  highlight: highlightConfig,
+  slugify: slugifyConfig,
+  slugContributions: slugifyConfig,
+  sideNavify: sideNavifyConfig,
+  searchFormId: searchFormId,
+  searchHitsId: searchHitsId,
+});
+```
+
+###### `stylus:`
+The path(s) to stylus configuration(s). May either be a string or an array of
+strings. Each string must be the path to a valid Bookmark compatible [stylus
+configuration](#styles) (Stylus files with the special script include on the
+first line).
+
+```javascript
+Bookmark.go({
+  stylus: './theme-white/theme.styl.html',
+  ...
+});
+```
+
+###### `doc:`
+The path(s) to Bookmark doc(s). May either be a string or an array of strings.
+Each string must be the path to a valid Bookmark compatible [doc ](#doc) files
+(markdown files with the special script include on the first line).
+
+```javascript
+Bookmark.go({
+  stylus: './theme-white/theme.styl.html',
+  ...
+});
+```
+
+
+###### `slugify:`
+
+Describes which header elements should become slugified (linkable with a
+readable url). The default is shown below.
+```javascript
+{
+  h1: true,
+  h2: true,
+  h3: true,
+  h4: false,
+  h5: false,
+  h6: false,
+}
+
+```
+
+<continueRight/>
+
+If a header level is not slugified, its content can still partake in the slug
+content of other header levels. See [`slugContributions:`](#api-slugcontributions).
+
+###### `slugContributions:`
+
+Describes which header elements should partake in _other_, header slugs.
+For example if `h1` is marked `true`, then `<h2/>`s will have the previous
+`h1` text in their slugs. Consequently, if everything is configured `false`,
+only *that* header's text will be used to create the slug.
+Slugs are always deduped regardless of which headers are slug contributors.
+The first slug of value `name` becomes `#name` and the second becomes `#name-1`
+and so on. Enabling more slug contributions doesn't change the deduping
+behavior, it just makes deduping less necessary.
+The defaults are as follows:
+
+```javascript
+{
+  h1: true,
+  h2: true,
+  h3: true,
+  h4: false,
+  h5: false,
+  h6: false,
+}
+```
+
+<continueRight/>
+
+`slugContributions` can help you avoid breaking existing links to pages.  If
+you never had an `h1` heading, and your existing slug urls did not have any
+component for the `h1` heading, you can later add an `h1` heading without
+breaking existing links by configuring the `slugContributions`'s `h1` field to
+be `false.`
+
+The more headings you allow to partake in slugs, the more fragile your links
+will be. But the fewer headings you allow to partake in slugs, the more
+non-unique slugs you will run into (with a `-1` appended after them).
+
+###### `sidenavify:`
+
+Describes which headings will be added to the side nav. This will also cause
+the `slugify` to be activated for this heading level even if it was set to
+`false` (only slugified headings can be linked to from the side nav).
+The defaults are as follows:
+
+```javascript
+{
+  h1: true,
+  h2: true,
+  h3: true,
+  h4: false,
+  h5: false,
+  h6: false,
+}
+```
+
+
+## Customizing
+
+### Add Files
+
+You can add more markdown docs (using the `.html`) or [Stylus](stylus) files
+(using the `.styl.html` extension). All new styles and html markdown pages should have the
+appropriate `<script>`Then just add it to the list of `pages:`
+in your `siteTemplate.html`. The `doc` and `stylus` options accept
+an array of paths.
+
+```html
+<script>
+Bookmark.go({
+  stylus: ["./path/to/YourStyle.styl.html"],
+  pages: {
+    "MYNEWFILE": { }
+  }
+});
+</script>
+```
+<continueRight/>
+
+- Stylus files should have the `.styl.html` extension, and be included in the
+  `stylusFetcher:`.
+- Markdown files shoud have the `.md.html` extension and be included in the
+  `fetcher:`
+
+
+### Highlighting
+
+Bookmark includes a vendored [hljs](hljs), and it is enabled by default in the main
+script tag in `index.dev.html` that runs `Bookmark`. `hljs` is by default configured
+to be the highlighter, and you can customize this.
+
+
+```html
+<script>
+Bookmark.go({
+  stylus: ...,
+  pages: ...,
+  highlight: (txt, lan) =>
+    hljs.highlight(lan, txt).lan;
+});
+</script>
+```
+
+
