@@ -320,7 +320,7 @@ $superGradedTxtColorLightest = $lowlight-10
 
 $gradedHeaderLinkColor = $gradedTxtColorLightest
 
-$bigHeadPadTop = $pad * 1.5
+$bigHeadPadTop = $pad * 1.2
 $offwhite = #f8f8f8
 $hitsBorderColor = $prim-desat-12
 /* $hitsbg = white */
@@ -924,14 +924,6 @@ body.current-page-number-20 .display-if-page-number-20-active
   h0
     font-size: 2em
 
-  // The subtitle that is injected from headerProps
-  p.bookmark-content-subtitle
-    font-size: .6em;
-    font-weight: normal;
-    color: $gradedTxtColorLighter
-    padding-top: 0
-    padding-bottom: 0
-
   h3
     font-size: 1.2em
 
@@ -953,9 +945,10 @@ body.current-page-number-20 .display-if-page-number-20-active
       padding-top: $minipad * 2
       &:before
         background: $gradedLine
-        left: $pad * -1
         top: $minipad * -1
-        width: 120%
+        /* Causes whole body to overflow */
+        /* left: $pad * -1 */
+        /* width: 120% */
 
   /* Small headings */
   h4, h5, h6, .small-heading
@@ -1015,6 +1008,7 @@ inset-box()
 
 body.no-literate .bookmark-content > pre > code
   inset-box()
+
 
 @media (max-width: 1280px) /* Small desktop */
   .bookmark-content > pre > code
@@ -1482,6 +1476,8 @@ $searchInputUnfocusedWidth = .8 * $availableHeaderSpaceAboveSearchHits
   // to avoid a flicker (chrome bug).
   border:1px solid $searchInputBorderColor !important;
   border-radius: $searchInputHeight;
+  // Avoid ugly shadow border in safari ios
+  -webkit-appearance: none;
   background-color: $searchInputBg;
   color: $gradedTxtColor
   position: relative;
@@ -1704,7 +1700,8 @@ $closeIconDiameter = 14px
   left: 0px;
   bottom: 0px;
   z-index: 2;
-  overflow-x: scroll;
+  overflow-x: hidden;
+  overflow-y: auto;
   -ms-overflow-style: none /* IE and Edge */;
   scrollbar-width: none /* Firefox */;
   line-height: 20px !important;
@@ -1714,7 +1711,6 @@ $closeIconDiameter = 14px
   color: $superGradedTxtColorLight
   line-height: 20px !important;
   font-size: 14px !important;
-  overflow: auto;
 /* Bottom: 100% makes it grow upwards */
 /* Total header height should be 52 = vmargin*2 + line-height(20) */
 /* Minus one because of the top border of the header doesn't count for top */
@@ -1802,7 +1798,12 @@ $headerTopPadding = $vmarginQuarter + 2px
   bookSvg($hitsHeaderIconColor)
 
 
+/** Long press in chrome mobile might make the links focused */
+.bookmark-hits-scroll .bookmark-hits-list-page a.bookmark-hits-item
+  text-decoration: none
+  
 .bookmark-hits-scroll .bookmark-hits-list-page .bookmark-hits-item {
+  noselect()
   cursor: pointer;
   color: $superGradedTxtColorLight
   /* Color transitions make it feel slower */
@@ -1820,39 +1821,46 @@ $headerTopPadding = $vmarginQuarter + 2px
 .bookmark-hits-scroll a.bookmark-hits-item
   display:block
 
-.bookmark-hits-scroll .bookmark-hits-item:hover
+/**
+ * https://stackoverflow.com/questions/17233804/how-to-prevent-sticky-hover-effects-for-buttons-on-touch-devices
+ */
+body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item:hover
   /* Color transitions make it feel slower */
   transition: border-color 50ms ease-out 0s, background-color 50ms ease-out 0s;
   background-color: $hitsItemHoverBg
   border-top: 1px solid $hitsItemHoverBg
   border-bottom: 1px solid $hitsItemHoverBg
 
-.bookmark-hits-scroll .bookmark-hits-item:active
+.bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:active
   background-color: $hitsItemCursorBg
   border-top: 1px solid $hitsItemCursorBg
   border-bottom: 1px solid $hitsItemCursorBg
   /* border-left: 1px solid darken($hitsItemCursorBg, 2%) */
   
 /* Override hover/active border whenever it has cursor. Border shoulnd't blend in. */
-.bookmark-hits-scroll .bookmark-hits-item.cursor,
-.bookmark-hits-scroll .bookmark-hits-item.cursor:hover,
-.bookmark-hits-scroll .bookmark-hits-item.cursor:active
+/* Cursor rules only should apply when the user has a hardward keyboard */
+/* Hover rules should only apply when not on touch devices */
+body.probably-has-keyboard .bookmark-hits-scroll .bookmark-hits-item.cursor,
+body.probably-has-keyboard:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item.cursor:hover,
+body.probably-has-keyboard .bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item.cursor:active
   background-color: $hitsItemCursorBg
   border-top: 1px solid $hits-item-border-cursor
   border-bottom: 1px solid $hits-item-border-cursor
 
 
-.bookmark-hits-scroll .bookmark-hits-item:hover:active pre,
-.bookmark-hits-scroll .bookmark-hits-item:active pre,
-.bookmark-hits-scroll .bookmark-hits-item.cursor pre,
-.bookmark-hits-scroll .bookmark-hits-item.cursor:hover pre
+/* Cursor rules only should apply when the user has a hardward keyboard */
+/* Hover rules should only apply when not on touch devices */
+body:not(.can-touch) .bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:hover:active pre,
+.bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:active pre,
+body.probably-has-keyboard .bookmark-hits-scroll .bookmark-hits-item.cursor pre,
+body.probably-has-keyboard body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item.cursor:hover pre
   background: $hitsItemCursorCodeBg
 
-.bookmark-hits-scroll .bookmark-hits-item:hover pre
+body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item:hover pre
   background: $hitsItemHoverCodeBg
 
 
-.bookmark-hits-scroll .bookmark-hits-item:active .bookmark-hits-item-button-contents {
+.bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:active .bookmark-hits-item-button-contents {
   user-select: none;
   transition: transform 48ms ease-out 0s;
   transform: scale(0.98);
@@ -1929,37 +1937,40 @@ $headerTopPadding = $vmarginQuarter + 2px
   border-radius: 2px;
   padding: 1px 3px;
 
-.bookmark-hits-scroll .bookmark-hits-item.cursor table > code,
-.bookmark-hits-scroll .bookmark-hits-item.cursor li > code,
-.bookmark-hits-scroll .bookmark-hits-item.cursor tr > code,
-.bookmark-hits-scroll .bookmark-hits-item.cursor td > code,
-.bookmark-hits-scroll .bookmark-hits-item.cursor th > code,
-.bookmark-hits-scroll .bookmark-hits-item.cursor p > code,
-.bookmark-hits-scroll .bookmark-hits-item.cursor:hover table > code,
-.bookmark-hits-scroll .bookmark-hits-item.cursor:hover li > code,
-.bookmark-hits-scroll .bookmark-hits-item.cursor:hover tr > code,
-.bookmark-hits-scroll .bookmark-hits-item.cursor:hover td > code,
-.bookmark-hits-scroll .bookmark-hits-item.cursor:hover th > code,
-.bookmark-hits-scroll .bookmark-hits-item.cursor:hover p > code
+/* Cursor rules only should apply when the user has a hardward keyboard */
+/* Hover rules should only apply when not on touch devices */
+body.probably-has-keyboard .bookmark-hits-scroll .bookmark-hits-item.cursor table > code,
+body.probably-has-keyboard .bookmark-hits-scroll .bookmark-hits-item.cursor li > code,
+body.probably-has-keyboard .bookmark-hits-scroll .bookmark-hits-item.cursor tr > code,
+body.probably-has-keyboard .bookmark-hits-scroll .bookmark-hits-item.cursor td > code,
+body.probably-has-keyboard .bookmark-hits-scroll .bookmark-hits-item.cursor th > code,
+body.probably-has-keyboard .bookmark-hits-scroll .bookmark-hits-item.cursor p > code,
+body.probably-has-keyboard body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item.cursor:hover table > code,
+body.probably-has-keyboard body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item.cursor:hover li > code,
+body.probably-has-keyboard body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item.cursor:hover tr > code,
+body.probably-has-keyboard body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item.cursor:hover td > code,
+body.probably-has-keyboard body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item.cursor:hover th > code,
+body.probably-has-keyboard body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item.cursor:hover p > code
   background: $hitsItemCursorCodeBg
   border: 1px solid darken($hitsItemCursorCodeBg, 7%)
 
-.bookmark-hits-scroll .bookmark-hits-item:hover table > code,
-.bookmark-hits-scroll .bookmark-hits-item:hover li > code,
-.bookmark-hits-scroll .bookmark-hits-item:hover tr > code,
-.bookmark-hits-scroll .bookmark-hits-item:hover td > code,
-.bookmark-hits-scroll .bookmark-hits-item:hover th > code,
-.bookmark-hits-scroll .bookmark-hits-item:hover p > code
-  background: $hitsItemHoverCodeBg
-  border: 1px solid darken($hitsItemHoverCodeBg, 7%)
+/* Hover rules should only apply when not on touch devices */
+body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item:hover table > code,
+body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item:hover li > code,
+body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item:hover tr > code,
+body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item:hover td > code,
+body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item:hover th > code,
+body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item:hover p > code
+    background: $hitsItemHoverCodeBg
+    border: 1px solid darken($hitsItemHoverCodeBg, 7%)
 
 
-.bookmark-hits-scroll .bookmark-hits-item:active table > code,
-.bookmark-hits-scroll .bookmark-hits-item:active li > code,
-.bookmark-hits-scroll .bookmark-hits-item:active tr > code,
-.bookmark-hits-scroll .bookmark-hits-item:active td > code,
-.bookmark-hits-scroll .bookmark-hits-item:active th > code,
-.bookmark-hits-scroll .bookmark-hits-item:active p > code
+.bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:active table > code,
+.bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:active li > code,
+.bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:active tr > code,
+.bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:active td > code,
+.bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:active th > code,
+.bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:active p > code
   background: $hitsItemCursorCodeBg
   border: 1px solid darken($hitsItemCursorCodeBg, 7%)
 
@@ -2131,6 +2142,21 @@ a.big.button
 @media (max-width: 768px) /* Mobile and tablet */
   .bookmark-menubar
     display: none
+  /*
+  body
+    // Prevent bouncy scrolling left/right on mobile.
+    overflow-x:hidden
+  */
+/**
+ * Fix overly aggresive body scrolling on input focus for iOS:
+ * https://stackoverflow.com/a/35675094
+ * Problem: This breaks tap to top!
+ */
+window
+  -webkit-overflow-scrolling : touch !important;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  height: 100% !important;
 
 @media (min-width: 768px) /* Desktop */
   .bookmark-content-root
@@ -2168,7 +2194,7 @@ a.big.button
 // Menu items
 .bookmark-menu
   ul.level-1 > li + li
-    margin-top: 20px
+    margin-top: 10px
 
   a
     position: relative
@@ -2183,7 +2209,8 @@ a.big.button
     &:hover, &:focus
       text-decoration: none
       color: $linkColorHoverFocus
-
+      
+  a.level-0
   a.level-1
     font-family: $body-font
     text-transform: uppercase
@@ -2237,13 +2264,16 @@ code
 
 // ----------------------------------------------------------------------------
 
+body.large-brief .bookmark-content p.bookmark-content-subtitle,
 .bookmark-content
   .large-brief & > h0:first-child + p,
   .large-brief & > h1:first-child + p,
   > p.brief
+    color: $gradedTxtColorLighter
     font-size: 1.3em
     font-family: $body-font
     font-weight: 300
+
 
 
 // ----------------------------------------------------------------------------
@@ -2344,10 +2374,15 @@ code
  * Notes: It's the width 100% on the second child (form) that makes this work.
  * Nice!
  */
-.fixedHeaderContainer ul.nav,
+.fixedHeaderContainer ul.nav
+  overflow-x:auto
+  overflow-y:hidden
   margin-left: auto
 
-.fixedHeaderContainer .bookmark-search-input
+.fixedHeaderContainer ul.nav::-webkit-scrollbar
+  display: none
+
+.fixedHeaderContainer .bookmark-search-form
   margin-right: auto
 
 @media only screen and (min-width: 1280px) {
@@ -2513,11 +2548,11 @@ body.current-page-number-12 .fixedHeaderContainer ul.nav li.site-nav-group-page-
 }
 
 @media only screen and (max-width: 735px) {
-  .fixedHeaderContainer ul {
-    overflow-x:auto
+  .fixedHeaderContainer ul.nav {
+    noselect()
   }
 
-  .fixedHeaderContainer ul::-webkit-scrollbar {
+  .fixedHeaderContainer ul.nav::-webkit-scrollbar {
     display: none
   }
 }

@@ -462,46 +462,59 @@ function queryParam(name) {
 }
 
 function parseYamlHeader(markdown, locationPathname) {
-  if (markdown.indexOf("---\n") === 0) {
-    var withoutFirstDashes = markdown.substr(4);
-    var nextDashesIndex = withoutFirstDashes.indexOf("\n---\n");
-    if (nextDashesIndex !== -1) {
-      var potentialYamlContent = withoutFirstDashes.substr(0, nextDashesIndex);
-      var lines = potentialYamlContent.split("\n");
-      var props = {};
-      for (var i = 0; i < lines.length; i++) {
-        var colonIndex = lines[i].indexOf(":");
-        if (colonIndex === -1) {
-          return { markdown: markdown, headerProps: {} };
-        } else {
-          var field = lines[i].substr(0, colonIndex);
-          // Todo: escape strings
-          var content = lines[i].substr(colonIndex + 1).trim();
-          if (content[0] === '"' && content[content.length - 1] === '"') {
-            var strContent = content.substr(1, content.length - 2);
-            content = content.replace(new RegExp('\\\\"', "g"), '"');
-          }
-          props[field] = content;
+  markdown = markdown.trim();
+  var yamlBoundaries = allMatchingIndicesWillMutateYourRegex(/\-\-\-\n/g, markdown);
+  if (yamlBoundaries.length > 1 && yamlBoundaries[0].atIndex === 0) {
+    var firstBoundary = yamlBoundaries[0];
+    var secondBoundary = yamlBoundaries[1];
+    var yamlContent = markdown.substring(firstBoundary.atIndex + firstBoundary.matchingString.length, secondBoundary.atIndex - 1);
+    var lines = yamlContent.split("\n");
+    var props = {};
+    for (var i = 0; i < lines.length; i++) {
+      if(lines[i].trim() === '') {
+        continue;
+      }
+      var colonIndex = lines[i].indexOf(":");
+      if (colonIndex === -1) {
+        return { markdown: markdown, headerProps: {} };
+      } else {
+        var field = lines[i].substr(0, colonIndex);
+        // Todo: escape strings
+        var content = lines[i].substr(colonIndex + 1).trim();
+        if (content[0] === '"' && content[content.length - 1] === '"') {
+          var strContent = content.substr(1, content.length - 2);
+          content = content.replace(new RegExp('\\\\"', "g"), '"');
         }
+        props[field] = content;
       }
-      if (!props.id) {
-        var filename = locationPathname.substring(locationPathname.lastIndexOf("/") + 1);
-        props.id =
-          filename.indexOf(".") !== -1
-            ? filename.substring(0, filename.lastIndexOf("."))
-            : filename;
-      }
-      return {
-        markdown: withoutFirstDashes.substr(nextDashesIndex + 4),
-        headerProps: props,
-      };
-    } else {
-      return { markdown: markdown, headerProps: {} };
     }
+    if (!props.id) {
+      var filename = locationPathname.substring(locationPathname.lastIndexOf("/") + 1);
+      props.id =
+        filename.indexOf(".") !== -1
+          ? filename.substring(0, filename.lastIndexOf("."))
+          : filename;
+    }
+    return {
+      markdown: markdown.substr(secondBoundary.atIndex + secondBoundary.matchingString.length),
+      headerProps: props
+    };
   } else {
     return { markdown: markdown, headerProps: {} };
   }
 }
+
+/**
+ * Regexes are stateful in JS. Named appropriately.
+ */
+function allMatchingIndicesWillMutateYourRegex(regex, haystack) {
+  var match;
+  var matches = [];
+  while (match = regex.exec(haystack)) {
+    matches.push({matchingString: match[0], atIndex: match.index});
+  }
+  return matches;
+};
 
 /**
  * Strips out a special case of markdown "comments" which is supported in all
@@ -521,28 +534,21 @@ function parseYamlHeader(markdown, locationPathname) {
  */
 function normalizeYamlMarkdownComments(markdown) {
   markdown = markdown.trim();
-  if (markdown.indexOf("[//]: # (---)\n") === 0) {
-    var withoutFirstDashes = markdown.substr(14);
-    var nextDashesIndex = withoutFirstDashes.indexOf("\n[//]: # (---)\n");
-    if (nextDashesIndex !== -1) {
-      var potentialYamlContent = withoutFirstDashes.substr(0, nextDashesIndex);
-      var lines = potentialYamlContent.split("\n");
-      var yamlLines = ["---"];
-      for (var i = 0; i < lines.length; i++) {
-        var line = lines[i];
-        var commentStartIndex = line.indexOf("[//]: # (");
-        if (commentStartIndex !== 0 || line[line.length - 1] !== ")") {
-          return markdown;
-        } else {
-          var commentContent = line.substr(9, line.length - 9 - 1); /*Minus one to trim last paren*/
-          yamlLines.push(commentContent);
-        }
-      }
-      yamlLines.push("---");
-      return yamlLines.join("\n") + withoutFirstDashes.substr(nextDashesIndex + 15);
-    } else {
-      return markdown;
-    }
+  var silentYamlBoundaries = allMatchingIndicesWillMutateYourRegex(
+    new RegExp(escapeRegExpSearchString("[//]: # (") + "---" + escapeRegExpSearchString(")\n"), "g"),
+    markdown
+  );
+  // Since white space trimmed, should be at index zero if first thing after script include
+  if (silentYamlBoundaries.length > 1 && silentYamlBoundaries[0].atIndex === 0) {
+    var firstBoundary = silentYamlBoundaries[0];
+    var secondBoundary = silentYamlBoundaries[1];
+    var yamlContent = markdown.substring(firstBoundary.atIndex + firstBoundary.matchingString.length, secondBoundary.atIndex - 1);
+    var yamlContentWithoutComment =
+      yamlContent.replaceAll(
+        new RegExp(escapeRegExpSearchString("[//]: # (") + "(.*)" + escapeRegExpSearchString(")"), "g"),
+        function(_s, content) { return content }
+      );
+    return "---\n" + yamlContentWithoutComment + "\n---\n" + markdown.substr(secondBoundary.atIndex + secondBoundary.matchingString.length);
   } else {
     return markdown;
   }
@@ -1492,6 +1498,9 @@ var contextToSlug = function (context, slugContributions) {
   return Flatdoc.slugify(slug.length > 0 ? slug.substring(1) : "");
 };
 
+/**
+ * H0s never partake in slugs.
+ */
 function annotateSlugsOnTreeNodes(hierarchicalDoc, slugContributions) {
   var seenSlugs = {};
   // Requesting side-nav requires linkifying
@@ -1544,7 +1553,6 @@ var substituteSiteTemplateContentsWithHeaderPropsOnFetch = function (
   siteTemplate = siteTemplate.replace(
     new RegExp("\\$\\{Bookmark\\.Active\\.([^\\}]*)}", "g"),
     function (matchString, field) {
-      console.log(effectiveId, field.toLowerCase());
       return effectiveId.toLowerCase() === field.toLowerCase() ? "active" : "inactive";
     }
   );
@@ -2316,7 +2324,7 @@ if (MODE === "bookmarkNodeMode") {
      *     menu == {
      *       level: 0,
      *       items: [{
-     *         section: "Getting started",
+     *         sectionHtml: "Getting started",
      *         level: 1,
      *         items: [...]}, ...]}
      */
@@ -2338,6 +2346,9 @@ if (MODE === "bookmarkNodeMode") {
       }
 
       var query = [];
+      if (runner.sidenavify.h0) {
+        query.push("h0");
+      }
       if (runner.sidenavify.h1) {
         query.push("h1");
       }
@@ -2367,9 +2378,9 @@ if (MODE === "bookmarkNodeMode") {
           (el.childNodes.length === 1 && el.childNodes[0].tagName === "code") ||
           el.childNodes[0].tagName === "CODE"
         ) {
-          text = "<code>" + text + "</code>";
+          text = "<code>" + escapeHtml(text) + "</code>";
         }
-        var obj = { section: text, items: [], level: level, id: $el.attr("id") };
+        var obj = { sectionHtml: text, items: [], level: level, id: $el.attr("id") };
         parent.items.push(obj);
         cache[level] = obj;
       });
@@ -2473,16 +2484,16 @@ if (MODE === "bookmarkNodeMode") {
 
       function process(node, $parent) {
         var id = node.id || "root";
-        var nodeHashToChangeTo = hashForLinkifiedPageifiedId(id);
+        var nodeHashToChangeTo = node.id ? hashForLinkifiedPageifiedId(id) : '';
 
         var $li = $("<li>")
           .attr("id", id + "-item")
           .addClass("level-" + node.level)
           .appendTo($parent);
 
-        if (node.section) {
+        if (node.sectionHtml) {
           var $a = $("<a>")
-            .html(node.section)
+            .html(node.sectionHtml)
             .attr("id", id + "-link")
             .attr("href", "#" + nodeHashToChangeTo)
             .addClass("level-" + node.level)
@@ -3050,6 +3061,7 @@ if (MODE === "bookmarkNodeMode") {
                 searchable.originalInclusiveContext,
                 pageKey
               );
+              hitsItem.ontouchstart = function() {}
               allMarkupForAllButtonContents +=
                 '<div class="bookmark-hits-item-button-contents">' +
                 topRowMarkup +
@@ -3171,6 +3183,34 @@ if (MODE === "bookmarkNodeMode") {
       hitsScrollContainer.addEventListener("mousedown", function (e) {
         e.preventDefault();
       });
+      /**
+       * Fix the age old safari iOS problem of ":active" css state persisting even
+       * after a touch turned into a scroll.
+       */
+      var numActiveTouches = 0;
+      hitsScrollContainer.addEventListener("scroll", function (e) {
+        if(numActiveTouches > 0) {
+          hitsScrollContainer.classList.add('scrolled-since-active-touches');
+        }
+      });
+      hitsScrollContainer.addEventListener("touchstart", function (e) {
+        numActiveTouches = e.touches.length;
+        if(e.touches.length > 1) {
+          e.preventDefault();
+        }
+      });
+      hitsScrollContainer.addEventListener("touchend", function (e) {
+        if(e.touches.length > 0) {
+          e.preventDefault();
+        }
+        numActiveTouches = e.touches.length;
+        if(numActiveTouches === 0) {
+          hitsScrollContainer.classList.remove('scrolled-since-active-touches');
+        }
+      });
+      hitsScrollContainer.addEventListener("touchcancel", function (e) {
+        numActiveTouches = e.touches.length;
+      });
     };
 
     Runner.prototype.getItemForCursor = function (effectiveCursor, resultsByPageKey) {
@@ -3220,9 +3260,22 @@ if (MODE === "bookmarkNodeMode") {
           // Ctrl-c can toggle open, and Esc can toggle open + focus.
           // When hitting enter it can reset the "last focused" memory.
           onFocus: function doInputFocus(e) {
+            setTimeout(function() {
             if (window["bookmark-header"]) {
-              window["bookmark-header"].scrollIntoView({ behavior: "smooth" });
+              console.log('custom scroll into view');
+              customScrollIntoView({
+                smooth: true,
+                container: "page",
+                element: window["bookmark-header"],
+                mode: "top",
+                topMargin: 0,
+                bottomMargin: 0,
+              });
             }
+            }, 25);
+            // document.body.scrollTop = 400;
+            // Can't really prevent default to prevent scroll. Software keyboard triggers it.
+            // e.preventDefault();
           },
           onDoesntWantActiveStatus: function (comp) {
             // console.log('search input doesnt want');
@@ -3976,7 +4029,6 @@ if (MODE === "bookmarkNodeMode") {
         var originalConfigKey = onePageState.originalConfigKey;
         var originalKeyIndex = onePageState.originalKeyIndex;
         var linkText = onePageState.originalPageConfig.linkText || originalConfigKey;
-        console.log(runner.constructEscapedBaseUrlFromRoot(originalConfigKey));
         return commentText
           .replaceAll(/\$\{Bookmark\.Template\.ForEachPage\.number\}/g, "" + +originalKeyIndex)
           .replaceAll(/\$\{Bookmark\.Template\.ForEachPage\.url\}/g, runner.constructEscapedBaseUrlFromRoot(originalConfigKey))
@@ -4029,6 +4081,55 @@ if (MODE === "bookmarkNodeMode") {
         document.body.style = "visibility: revert";
       }
     };
+
+    /**
+     * Page level event handlers and styles.
+     * https://stackoverflow.com/a/38514545
+     * Detecting hardward keyboards is too hard, because you need to use key
+     * timing and that's too unpredictable especially when your key down and up
+     * have long running computations.
+     * https://stackoverflow.com/a/42728257
+     * Instead, we should do something for the search input specifically. Set
+     * the cursor to negative one by default when we are on a touch device.
+     * Then use any down/up/ctrl-p/ctrl-n to infer a physical keyboard and set
+     * the cursor to the first item.
+     * For now, we'll pretend we've solved that problem with a css class to
+     * target styles '.probably-has-keyboard' which will (for now) always be
+     * equal to !can-touch.
+     */
+    Runner.prototype.setupPage = function () {
+      document.body.classList.add('probably-has-keyboard');
+      var isTouch = false;
+      var hasKeyboard = false;
+      var isTouchTimer;
+      //var indicating current document root class ("can-touch" or "")
+      var curRootTouchClass = '';
+
+      function addTouchClass(e) {
+        clearTimeout(isTouchTimer);
+        isTouch = true;
+        //add "can-touch' class if it's not already present
+        if (curRootTouchClass != 'can-touch') {
+          curRootTouchClass = 'can-touch';
+          document.body.classList.add(curRootTouchClass);
+          document.body.classList.remove('probably-has-keyboard');
+        }
+        //maintain "istouch" state for 500ms so removetouchclass doesn't get
+        //fired immediately following a touch event
+        isTouchTimer = setTimeout(function(){isTouch = false;}, 500)
+      }
+      function removeTouchClass(e) {
+        if (!isTouch && curRootTouchClass == 'can-touch'){ //remove 'can-touch' class if not triggered by a touch event and class is present
+          isTouch = false;
+          curRootTouchClass = '';
+          document.body.classList.remove('can-touch')
+          document.body.classList.add('probably-has-keyboard')
+        }
+      }
+      
+      document.addEventListener('touchstart', addTouchClass, false);
+      document.addEventListener('mouseover', removeTouchClass, false);
+    };
     /**
      * Loads the Markdown document (via the fetcher), parses it, and applies it
      * to the elements.
@@ -4041,6 +4142,7 @@ if (MODE === "bookmarkNodeMode") {
     ) {
       var start = Date.now();
       var runner = this;
+      runner.setupPage();
       runner.setupSearch();
       $(runner.pageRootSelector).on("flatdoc:ready", this.removeFromRenderedPage.bind(this));
       $(runner.pageRootSelector).on("flatdoc:ready", this.fixupAlignmentClasses.bind(this));
