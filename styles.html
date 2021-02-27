@@ -1,0 +1,97 @@
+[//]: # ( vim: set filetype=Markdown: )
+[//]: # (<style type="text/css">body {visibility: hidden} </style>)
+[//]: # (<meta charset="utf-8">)
+[//]: # (<script src="site/Paradoc.js"> </script>)
+---
+title: Styles
+subtitle: Paradoc Style Support
+description: Paradoc Style Support
+nextPage: integration
+rootPage: readme
+siteTemplate: siteTemplate.html
+---
+
+### Styles And Stuff
+
+Styles can be authored in plain `.css` and included in `index.dev.html` as a
+regular css file, but Paradoc also supports [Stylus](stylus) files also without
+any build step/server.  Stylus config goes into files with a `.html` file (or
+preferably a `.styl.html` file - for clarity), and use standard Stylus syntax,
+with the exception of requiring a single single script tag on the first line,
+just as with markdown files.
+
+```css
+<script src="site/Paradoc.js"></script>
+.title-area
+  min-height: 100px
+  box-sizing: border-box
+  antialias()
+  text-align: center
+```
+
+<continueRight/>
+
+The default Stylus file is
+[`theme-white/theme.styl.html`](theme-white/theme.styl.html). You may edit it
+and reload the page to see the changes.
+
+> Note: Check the console for errors parsing your Stylus syntax.
+
+Create more `.styl.html` files and add them to the list of files in the
+`stylusFetcher` loaded as explained in [Adding
+Files](API.html#customizing-add-files) section.
+
+### Fonts
+Paradoc comes with two vendored fonts.
+
+- [`fonts/CodingFont.css`](./fonts/CodingFont.css): a css inlined font named
+  `CodingFont`
+- [`fonts/WordFont.css`](./fonts/WordFont.css) a css inlined font named
+  `WordFont`
+
+These two font names are referenced in
+[`theme-white/theme.styl.html`](theme-white/theme.styl.html). `CodingFont` is
+actually `Fira`, and `WordFont` is actually `Roboto`, but they have been
+renamed. See their respective licenses in [fonts/](./fonts).
+
+### Customizing Font
+You can either replace `CodingFont` and `WordFont` with two css files that
+contain your desired fonts, but rename those fonts to be
+`CodingFont`/`WordFont` respectively. This would work well if you are replacing
+those fonts with an open licensed font.
+
+If you want to use a proprietary font when publishing your page online, but
+want to keep your documentation open source, Paradoc also supports a "layered"
+approach. Two additional custom fonts (`PrivateCodingFont` and
+`PrivateWordFont`) are automatically prioritized if they are present in the
+repo.
+
+- [`fonts/PrivateCodingFont.css`](./fonts/PrivateCodingFont.css), if present,
+  should define a css inlined font named `PrivateCodingFont`.
+- [`fonts/PrivateWordFont.css`](./fonts/PrivateWordFont.css), if present,
+  should define a css inlined font named `PrivateWordFont`.
+
+These allow you to keep the `CodingFont`/`WordFont` in a public Github repo,
+but then locally define these private fonts which are never pushed publicly to
+a repo. This allows you to easily open source every part of your docs site
+except private fonts, which you personally use locally, and will push to
+production.
+
+Once you create the propper css files in those locations that define fonts
+named `PrivateCodingFont` and `PrivateWordFont` respectively, those fonts will
+be used to render code examples and text respectively, otherwise the included
+`CodingFont` and `WordFont`  fonts will be used as a fallback.
+
+Note: These private fonts are not present in this github repo, but you may
+populate them with your custom fonts as follows:
+
+#### Creating Font Files:
+
+**Creating Your Own Private Font Files:**
+To create your own `PrivateCodingFont.css`/`PrivateWordFont.css` use a site
+like [https://transfonter.org/](tranfonter.org) to turn your prefered fonts
+into inlined CSS fonts (Select `woff`, and select the `base64` option). Then
+edit the resulting CSS file to change the name of the font to
+`PrivateCodingFont` or `PrivateWordFont` and place them at
+[`./fonts/PrivateCodingFont.css`](./fonts/PrivateCodingFont.css) and
+[`./fonts/PrivateWordFont.css`](./fonts/PrivateWordFont.css) respectively.

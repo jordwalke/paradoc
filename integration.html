@@ -1,0 +1,284 @@
+[//]: # ( vim: set filetype=Markdown: )
+[//]: # (<style type="text/css">body {visibility: hidden} </style>)
+[//]: # (<meta charset="utf-8">)
+[//]: # (<script src="site/Paradoc.js"> </script>)
+---
+title: Integration
+subtitle: Playing Well With Github and Editors
+description: Playing Well With Github and Editors
+rootPage: readme
+siteTemplate: siteTemplate.html
+---
+
+This page tells you how to:
+
+- Use a single `.html` as both a Github markdown preview and your website.
+- Highlight as markdown in Vim/Emacs.
+- Work well with Safari in development mode.
+
+If none of that is interesting to you then this page is not for you. You just
+keep writing `.html` markdown files with a single script tag at the top, and
+(optional) YAML headers:
+
+```markdown
+<script src="site/Paradoc.js"> </script>
+---
+title: You don't even need to include this --- YAML header
+---
+Nothing fancy  for you!
+- Just regular markdown files
+- With a single <script></script> tag at the top.
+```
+
+<continueRight/>
+
+For the rest of you, read on.
+
+
+
+### All The Integrations
+
+The rest of this page explains each of the Github/editor/browser integration
+options in detail. Here's a quick example of using all the integrations at once
+at the start of an html markdown file. This example:
+
+- Tells Github to render a markdown preview of your page in your repo and tells
+  Vim to highlight it as markdown.
+- Include a style that hides the flash of content when loading the page in
+  local development mode.
+- Makes Safari play nicer with UTF-8 text in development mode.
+- Includes the `Paradoc.js` script.
+
+```markdown
+[//]: # ( vim: set filetype=Markdown: )
+[//]: # (<style type="text/css">body {visibility: hidden} </style>)
+[//]: # (<meta charset="utf-8">)
+[//]: # (<script src="site/Paradoc.js"> </script>)
+---
+title: My Page Title
+rootPage: readme
+---
+```
+
+
+#### Hiding The YAML headers in Github preview
+
+To take it a step further, you can hide the YAML headers in Github's preview
+rendering, while still providing that header information to Paradoc for
+configuring your page.  Just include the YAML yeader lines in comments as well.
+The previous example becomes:
+
+```markdown
+[//]: # ( vim: set filetype=Markdown: )
+[//]: # (<style type="text/css">body {visibility: hidden} </style>)
+[//]: # (<meta charset="utf-8">)
+[//]: # (<script src="site/Paradoc.js"> </script>)
+[//]: # (---)
+[//]: # (title: My Page Title)
+[//]: # (rootPage: bookmark)
+[//]: # (---)
+```
+
+
+
+### Background
+
+Github by default will not render a `README.html` (or any `.html` file) as
+markdown, unless it knows it's a markdown file.
+Similarly, vim/emacs will not highlight an html file as markdown unless you
+instruct it to.
+
+The way that you instruct Github and Vim to treat the html file as a markdown
+file is the same. You must include the text `vim: set filetype=Markdown:`
+somewhere in the first line. You _could_ stick the text `vim: set
+filetype=Markdown:` at the top of your file, and it would work but Github would
+_also_ render that literal text which is not what you want.
+
+### Comments To The Rescue
+
+Markdown supports comments of the following form:
+
+```markdown
+[//]: # (you can put anything you want here)
+```
+
+<continueRight/>
+
+The text between the `( )` will not be rendered by Github's preview, and
+Paradoc will also ignore then when rendering the page.
+
+#### Make Github Render Markdown Preview
+
+While it won't be rendered, fortunately Vim/Github will still search for
+`vim: set filetype=Markdown:` inside the parenthesis, so we can include a
+markdown comment at the top of the document that tells Github/editors to treat
+this file as markdown even though it has an html extension.
+
+```markdown
+[//]: # ( vim: set filetype=Markdown: )
+```
+
+
+#### Hide The Script Tag In Github Preview
+
+Github will also render the initial `<script>` include at the top of files as
+plain text which is not what you want. You wanted to use a single `.html`
+source of truth as your main Paradoc page, and have it render nicely on
+Github!  We can use the same markdown comment trick that we used with the vim
+filetype line to hide the script tag in Github's preview. Let's add this to
+the previous example:
+
+```markdown
+[//]: # ( vim: set filetype=Markdown: )
+[//]: # (<script src="site/Paradoc.js"> </script>)
+Your regular markdown _here_.
+```
+
+
+Now Github will render your Paradoc `.html` page as a markdown preview in your
+repo. Pretty cool! There's one small problem. When in development mode (locally
+authoring/reloading) there _might_ be a small flash of unstyled text when
+reloading depending on how fast you reload (the contents up until the script
+tag).
+We can fix that by including a page hider in yet another markdown comment
+(inserted before the script include).
+```markdown
+[//]: # ( vim: set filetype=Markdown: )
+[//]: # (<style type="text/css">body {visibility: hidden} </style>)
+[//]: # (<script src="site/Paradoc.js"> </script>)
+Your regular markdown _here_.
+```
+
+So now we have a single source of truth `.html` page that can function as both
+a Paradoc website, and render nicely in your Github repo's markdown preview,
+and it feels great when reloading it locally in development mode.
+
+#### Hide The YAML header In Github Preview
+
+
+```markdown
+[//]: # ( vim: set filetype=Markdown: )
+[//]: # (<style type="text/css">body {visibility: hidden} </style>)
+[//]: # (<script src="site/Paradoc.js"> </script>)
+Your regular markdown _here_.
+```
+
+#### Silent Github YAML Headers
+
+If you are using a single source of truth for both Github markdown preview and
+your Paradoc website, you might want to hide the YAML headers in the Github
+preview (Github renders them as a nice looking table, but maybe you want to
+omit them entirely).
+
+Paradoc provides a solution using - you guessed it - markdown comments!
+Paradoc supports embedding ("silent") YAML headersl in markdown comments.
+This is a bookmark specific feature. Github and all other markdown tooling will
+ignore these headers, but Paradoc will still pay attention to them to
+configure your page. We'll continue building from the previous example, and
+addd silent YAML headers.
+
+
+```markdown
+[//]: # ( vim: set filetype=Markdown: )
+[//]: # (<style type="text/css">body {visibility: hidden} </style>)
+[//]: # (<script src="site/Paradoc.js"> </script>)
+[//]: # (---)
+[//]: # (title: My Page Title)
+[//]: # (rootPage: readme)
+[//]: # (---)
+Your regular markdown _here_.
+```
+
+
+This prevents the header metadata from being rendered as a table in Github's viewer,
+but Paradoc will still extract them just as if they were YAML headers.
+The result is a single Paradoc doc that serves as a Github viewable markdown page,
+as well as powering a website.
+
+#### Developing In Safari:
+
+Safari does not interpret the encoding of files as utf-8 by default unless the
+html document has `<meta charset="utf-8">` at the top of the file.  That means
+any `.html` page, or style `.html` page must have `<meta charset="utf-8">` at
+the top, if you want to be able to load it in Safari.  This only effects
+development mode because normally you would perform a build of the site before
+deploying it, where the encoding issue doesn't arise.
+
+Putting everything together gives us the following file:
+
+```markdown
+[//]: # ( vim: set filetype=Markdown: )
+[//]: # (<style type="text/css">body {visibility: hidden} </style>)
+[//]: # (<meta charset="utf-8">)
+[//]: # (<script src="site/Paradoc.js"> </script>)
+[//]: # (---)
+[//]: # (title: My Page Title)
+[//]: # (rootPage: readme)
+[//]: # (---)
+Your regular markdown _here_.
+```
+
+## More Options:
+
+#### Emacs File Detection
+
+Instead of using the Vim file detection line to trick Github into rendering yor
+preview, you could use the following line using the emacs file detection form.
+This is the same as the Vim form except it will tell Emacs to highlight as Markdown
+instead of telling Vim to do so.
+
+```markdown
+[//]: # (-*-mode:markdown-*-)
+```
+
+
+
+### How Paradoc Works
+
+`README.md.html` is both a valid html page and a valid markdown page. Because
+browsers allow loading of html pages in iframes across origins, no web server
+is needed to develop and reload docs entirely in the browser without a build
+step/web server.
+
+`README.md.html` looks like:
+
+```markdown
+<script src="site/Paradoc.js"></script>
+Everything _after_ the first line is
+plain **markdown**.
+1. Nothing needs to be escaped.
+2. Not even if your markdown contains
+  a `<script>` tag.
+```
+<continueRight/>
+
+Everything after the first line is plain markdown. There is nothing special you
+need to do to your markdown even though it is in an `.html` file. You can
+include literally any markdown after that first script tag line, and you don't
+have to escape any of it. The browser won't even think you're starting a script
+region if you include a `<script>` tag somewhere after the first line. How?
+The inclusion of the first `Paradoc.js` script forces the rest of the document
+to be interpreted as plain text that needn't be escaped.
+
+When you have your script include be specified in a markdown comment like this:
+
+
+```markdown
+[//]: # (<script src="site/Paradoc.js"> </script>)
+Everything _after_ the first line is
+plain **markdown**.
+- Even this `<script>` text.
+```
+
+<continueRight/>
+
+Then the browser will still run the script tag as usual, and Paradoc will
+delete all the text content that was included before the first line's
+'`<script`.  The fact that the script include is inside of a markdown comment
+tells Github rendering to not show the `<script>` tag.
+
+
+
+#### `.gitattributes` Approach:
+There is an approach to getting Github to render your `.html` page as markdown
+that uses `.gitattributes`.  This is left as an exercize to the reader.

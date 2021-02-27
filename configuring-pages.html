@@ -1,0 +1,71 @@
+[//]: # ( vim: set filetype=Markdown: )
+[//]: # (<style type="text/css">body {visibility: hidden} </style>)
+[//]: # (<meta charset="utf-8">)
+[//]: # (<script src="site/Paradoc.js"> </script>)
+---
+title: Configuring Paradoc Pages
+subtitle: Configuring Your Pages
+description: Configuring Your Pages
+nextPage: styles
+rootPage: readme
+siteTemplate: siteTemplate.html
+---
+
+### Header Properties
+
+Page properties are configured in [YAML Headers](readme.html#yaml-headers).
+The following table lists header properties that Paradoc pays attention to and
+uses to render your page.
+
+#### YAML Header Properties
+
+| Property                          | Purpose                                                                                                |
+|---------------------------------- |--------------------------------------------------------------------------------------------------------|
+| `title:`                          | Title rendered at top of page as `<h0>`                                                                |
+| `subtitle:`                       | Subtle rendered below the title in the page.                                                           |
+| `description:`                    | Description of page.                                                                                   |
+| `hideInNav:`                      | Whether or not to hide in the sticky page navigation.                                                  |
+| `hideInSearch:`                   | Hide page and contents in search results.                                                              |
+| `siteTemplate:`                   | HTML page template to use to control overall layout of page  (optional defaults to `siteTemplate.html`)|
+| `linkText:`                       | Text for links to the page (in the sticky navigation header)                                           |
+| `nextPage:`                       | Page that should come after this page in navigation header and search results ordering.                |
+| `rootPage:`                       | Root "main" page that (usually `readme.html`/`index.html` etc)                                         |
+
+
+### Adding Pages
+
+To Add a new page _after_ your current page:
+
+1. Set the `nextPage:` property of your current page's YAML header to be the root name of the new page (`myNextPage`).
+2. Make sure `myNextPage.html` exists and has the proper Paradoc script include.
+2. As always make sure your current page and next page both include a
+   `rootPage:` header property pointing back to the "first" page they are child
+   pages of (usually `readme` or `index`).
+
+
+##### The current page would be configured similar to:
+
+```markdown
+<script src="site/Paradoc.js"></script>
+---
+title: My Current Page
+nextPage: myNextPage
+rootPage: readme
+---
+```
+
+##### `myNextPage.html` would be configured as:
+
+
+```markdown
+<script src="site/Paradoc.js"></script>
+---
+title: My Next Page
+rootPage: readme
+---
+```
+
+
+### The Site Template
+
+TODO: Document this.
