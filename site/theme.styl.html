@@ -1,5 +1,5 @@
 <meta charset="utf-8" vim: set filetype=Stylus: >
-<script src="./Bookmark.js"> </script>
+<script src="./Paradoc.js"> </script>
 support-for-ie = true
 
 
@@ -17,6 +17,10 @@ hextorgba(color)
 
 $prim = #2a8c4d
 $lowlight = #27332b
+/* Reason colors */
+$prim = #DD4B39
+$lowlight = #4d3e3e
+/* Blue colors */
 $prim = #5674FF
 $lowlight = #3f3e4d
 
@@ -244,7 +248,7 @@ $lowlight-desat-17 = rgb(desaturate($lowlight-17, 50%))
 .bg-lowlight-desat-17
   background-color: $lowlight-desat-17
 
-.nodisplay
+.nodisplay-true
   display: none
 
 .mock-demo
@@ -276,7 +280,7 @@ $mono-font-size = 14px
 // Line height has to be exact pixels, not in terms of em because bold segments
 // of code have larger font size and their lines aren't consistently spaced.
 // Noticable when switching code tabs.
-$mono-line-height = 21px
+$mono-line-height = 1.6
 $kbd-font-size = 0.80em
 
 // Margins
@@ -310,6 +314,7 @@ $gradedLine = $lowlight-desat-14
 $gradedHeaderTextShadow = 0 1px 2px #ffffffaa
 $gradedCodebg = $lowlight-16
 $gradedCodeBorder = darken($gradedCodebg, 5%)
+$gradedTableBorder = $lowlight-15
 
 
 // Super graded text color "when shown on colored background"
@@ -325,7 +330,7 @@ $offwhite = #f8f8f8
 $hitsBorderColor = $prim-desat-12
 /* $hitsbg = white */
 $hitsFontSize = 12px
-$hitsLineHeight = 18px
+$hitsLineHeight = 1.6
 /* Hits colors */
 $hitsbg = $prim-desat-15 
 $hitsCodeBg = $prim-desat-14 
@@ -354,8 +359,8 @@ $header-height = 52px
 $searchInputHeight = 28px
 $searchInputIconWidth = 20px
 $searchInputBg = #fff
-$searchInputBorderColor = $hitsBorderColor
-$searchInputBorderColorFocus = darken($searchInputBorderColor, 10%)
+$searchInputBorderColor = $prim-desat-12
+$searchInputBorderColorFocus = $prim-desat-10
 
 
 $button-txt-color=$gradedTxtColorLighter
@@ -383,21 +388,28 @@ $button-prim-border-active = $prim-2
 
 
 
-// This could probably be derived from the others.
-// It's the main right column
-$rightcolumnwidth=380px
-
 // Misc
 $shadow-str = 0.1
 
 // Dimensions
-$sidebar-width = 300px
-$content-width = 480px
-// Because code blocks are rendered in search, need
-// it to be about as wide as the standard right column
-$rightdockedhitscolumnwidth = $rightcolumnwidth
-$pre-width = 480px
+$smallest-sidebar-width = 250px
 
+$big-split-sidebar-width = $smallest-sidebar-width
+$big-split-pre-width = 480px
+$big-split-content-width = 520px
+$big-split-width-threshold=$big-split-pre-width+$big-split-content-width+$big-split-sidebar-width
+
+// Macbook air has 1600px horizontal pixels. Let's come in just under that to allow for slightly
+// resized window.
+$bigger-split-sidebar-width = 350px
+$bigger-split-pre-width = 580px
+$bigger-split-content-width = 620px
+$bigger-split-width-threshold=$bigger-split-pre-width+$bigger-split-content-width+$bigger-split-sidebar-width
+
+$biggest-split-sidebar-width = 450px
+$biggest-split-pre-width = 680px
+$biggest-split-content-width = 720px
+$biggest-split-width-threshold=$biggest-split-pre-width+$biggest-split-content-width+$biggest-split-sidebar-width
 
 
 
@@ -410,6 +422,9 @@ $gradedBookSplitShadow = darken($gradedBookSplitBg, 1%)
   z-index:100
 
 noselect()
+  /* touch action doesn't solve the problem of unhilighting :active elements when page scrolls */
+  /* touch-action: manipulation; */
+  /* -webkit-touch-action: manipulation; */
   -webkit-touch-callout: none; /* iOS Safari */
   -webkit-user-select: none; /* Safari */
   -khtml-user-select: none; /* Konqueror HTML */
@@ -578,7 +593,7 @@ fileSvg($color)
 externalLinkSvg($color)
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='" + hextorgba($color) + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' class='feather feather-external-link'%3E%3Cpath d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'/%3E%3Cpolyline points='15 3 21 3 21 9'/%3E%3Cline x1='10' y1='14' x2='21' y2='3'/%3E%3C/svg%3E")
 
-a[href^="http"]::after {
+.bookmark-content-root a[href^="http"]::after {
     // https://feathericons.com/
     // https://yoksel.github.io/url-encoder/
     externalLinkSvg($linkColor)
@@ -591,13 +606,13 @@ a[href^="http"]::after {
     margin: 2px;
 }
 
-a[href^="http"]:hover::after {
+.bookmark-content-root a[href^="http"]:hover::after {
   // https://feathericons.com/
   // https://yoksel.github.io/url-encoder/
   externalLinkSvg($linkColorHoverFocus)
 }
 
-a[href^="http"].button::after
+.bookmark-content-root a[href^="http"].button::after
    background-image: none
    display: none
 
@@ -608,8 +623,8 @@ a[href^="http"].button::after
 bookmarkforeachpage
   display:none
 
-.display-if-active-inactive
-  display: none !important;
+body .should-hide-true
+  display:none
 
 body .display-if-page-number-0-active,
 body .display-if-page-number-1-active,
@@ -670,8 +685,14 @@ body.current-page-number-20 .display-if-page-number-20-active
 
   p, ul, ol, h0, h1, h2, h3, h4, h5, h6, pre, blockquote, dl, codetabscontainer
     padding: $vmarginHalf 0
+  /* Note: This must match the padding for the above rule because in split
+   * mode, the blockquote must align with the top of the items in the non-split
+   * column. You could customize some of the padding, but not the top padding.
+   * You could also increase this to $vmargin for both top and bottom, but not
+   * in split mode, so you'd need to add another rule for split mode to make it
+   * match the rule above.  */
   blockquote
-    padding: $vmargin 0
+    padding: $vmarginHalf 0
   dd
     padding-left: 0.5 * $pad
     margin-bottom: $vmargin
@@ -766,6 +787,11 @@ body.current-page-number-20 .display-if-page-number-20-active
     font-family: $mono-font
     padding: 1px 3px
     font-size: $mono-font-size
+  // Inline code block with backticks but with custom syntax highlighting.
+  bookmark-inline-codeblock
+    font-family: $mono-font
+    padding: 1px 3px
+    font-size: $mono-font-size
   dl > dt > code, h0 code, h1 code, h2 code, h3 code, h4 code, h5 code, h6 code
     padding: 0px
     font-size: 1em
@@ -785,13 +811,12 @@ body.current-page-number-20 .display-if-page-number-20-active
     letter-spacing: 0px
 
   blockquote
-    :first-child
+    & > :first-child
       padding-top: 0
-    :last-child
+    & > :last-child
       padding-bottom: 0
 
   table
-
     margin-top: $vmargin
     margin-bottom: $vmargin
     padding: 0
@@ -814,13 +839,14 @@ body.current-page-number-20 .display-if-page-number-20-active
         background-color: $offwhite
         text-align: auto;
         font-weight: bold
-        border: 1px solid $gradedLine
+        border: 1px solid $gradedTableBorder
         margin: 0
         padding: 6px 13px
+        color: $lowlight-8
 
       td
         text-align: auto;
-        border: 1px solid $gradedLine
+        border: 1px solid $gradedTableBorder
         margin: 0
         padding: 6px 13px
 
@@ -857,29 +883,6 @@ body.current-page-number-20 .display-if-page-number-20-active
     .imageContainer
       &:after
         box-shadow: none !important
-
-@media (min-width: 1280px) /* Big desktop */
-  body:not(.no-literate)
-    .bookmark-content
-      blockquote
-        .imageContainer
-          /* So clicks pass through to image */
-          pointer-events: none
-          overflow:hidden;
-          display:inline-block;
-          position:relative;
-          border-radius:0px;
-          &:after
-            content: "";
-            position: absolute;
-            width: 100%; height: 100%;
-            left: 0; top: 0;
-            box-shadow: inset 0px 0px 0px 0.5px #55555511
-          img
-            vertical-align:middle;
-            /* Reenable pointer events */
-            pointer-events: auto
-
 
 .bookmark-content.current
   display: inherit;
@@ -966,7 +969,17 @@ body.current-page-number-20 .display-if-page-number-20-active
 
   h0:first-child,
   h1:first-child
+    //  Because literate mode uses float left on headers (and <p>) and floats don't collapse their margins
+    //  Literate mode top padding/margin will not be collapsed into the main
+    //  bookmark-content padding, but non-literate mode will be causing a
+    //  jarring header jump when resizing. So we set the margin to zero here.
+    //  But the downside with resetting this here is that the first-child header
+    //  with a following blockquote/pre won't be rendered as literate.  because
+    //  to get headers to be rendered along side a corresponding literate block
+    //  we needed to tweak header margins. A literate block after the first
+    //  header is rare so it's probably okay.
     padding-top: 0
+    margin-top: 0
     &, a, a:visited
       color: $gradedTxtColor
     &:before
@@ -1010,7 +1023,8 @@ body.no-literate .bookmark-content > pre > code
   inset-box()
 
 
-@media (max-width: 1280px) /* Small desktop */
+
+@media (max-width: $big-split-width-threshold) /* Small desktop */
   .bookmark-content > pre > code
     inset-box()
 
@@ -1131,10 +1145,9 @@ insetCodeTabCodes()
     & + pre + pre + pre + pre + pre > code
       inset-box-codetabs-container()
 
-@media (max-width: 1280px)
+@media (max-width: $big-split-width-threshold)
   body .bookmark-content
     insetCodeTabCodes()
-@media (min-width: 1280px) /* Big desktop */
   body.no-literate .bookmark-content
     insetCodeTabCodes()
 
@@ -1212,153 +1225,195 @@ insetCodeTabCodes()
 // ----------------------------------------------------------------------------
 // Literate mode content
 
-@media (min-width: 1280px) /* Big desktop */
-  body:not(.no-literate)
-    .bookmark-content-root
-      background-color: $offwhite
-      $w = ($sidebar-width + $content-width)
-      /* Shadow on the book split */
-      background: linear-gradient(90deg, transparent 776px, $gradedBookSplitShadow 776px, $gradedBookSplitBg 782px);
+drawBookSplit($sidebar-width, $contentWidth)
+  $widthPlusSideBar = $sidebar-width + $contentWidth
+  $wShadowEnd = $widthPlusSideBar + 12px
+  /* Shadow on the book split */
+  background: linear-gradient(90deg, transparent $widthPlusSideBar, $gradedBookSplitShadow $widthPlusSideBar, $gradedBookSplitBg $wShadowEnd);
+  &:before
+    background-color: $gradedLine
+    content: "";
+    display: block;
+    width: 1px;
+    height: 100%;
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    left: $widthPlusSideBar; /* Can actually ues a calc to get stretchy split calc(50% - 1px); */
 
-      &:before
-        background-color: $gradedLine
-        content: "";
-        display: block;
-        width: 1px;
-        height: 100%;
-        position: absolute;
-        z-index: 0;
-        top: 0;
-        left: 776px; /* Can actually ues a calc to get stretchy split calc(50% - 1px); */
+splitView($sidebar-width, $split-pre-width, $split-content-width)
+  $split-width-threshold = $sidebar-width + $split-content-width + $split-pre-width
+  @media (min-width: $split-width-threshold) /* Big desktop */
+    body .bookmark-hits-scroll {
+      width: $sidebar-width
+    }
 
-// Literate mode
-@media (min-width: 1280px) /* Big desktop */
-  small-heading()
-    margin-left: $pad
-    width: $content-width - $pad * 2
+    body .bookmark-content-root
+      padding-left: $sidebar-width
 
-    padding-left: 0
-    padding-right: 0
+    /*
+     * Always keep this at the smallest width so that the menu contents don't
+     * unwrap causing vertical shifts in menu.
+    body .bookmark-menubar
+        width: $sidebar-width
+    */
 
-  body:not(.no-literate)
-    .bookmark-content
+    body:not(.no-literate)
+      .bookmark-content
+        blockquote
+          .imageContainer
+            /* So clicks pass through to image */
+            pointer-events: none
+            overflow:hidden;
+            display:inline-block;
+            position:relative;
+            border-radius:0px;
+            &:after
+              content: "";
+              position: absolute;
+              width: 100%; height: 100%;
+              left: 0; top: 0;
+              box-shadow: inset 0px 0px 0px 0.5px #55555511
+            img
+              vertical-align:middle;
+              /* Reenable pointer events */
+              pointer-events: auto
+
+    body:not(.no-literate)
+      .bookmark-content-root
+        background-color: $offwhite
+        drawBookSplit($sidebar-width, $split-content-width)
+
+    small-heading()
+      margin-left: $pad
+      width: $split-content-width - $pad * 2
+
       padding-left: 0
       padding-right: 0
-      width: $content-width + $pre-width
-      max-width: none
-      >
-        .bookmark-synced-up-left
-          clear: both
-        /*.bookmark-synced-up-right
-          margin-top:$pad */
-        p, ul, ol, h0, h1, h2, h3, h4, h5, h6, pre, blockquote, dl, dt, dd
-          width: $content-width
-          padding-right: $pad
-          padding-left: $pad
-        codetabscontainer, pre, blockquote
-          width: $pre-width
-          padding-left: ($pad/2)
-          padding-right: ($pad/2)
-          float: right
-          clear: right
-          +
-            p, ul, ol
-              clear: both
-        p, ul, ol
-          float: left
-          clear: left
 
-        /* Allow content to float to the right of smaller headers, but then we need to adjust
-         * for the extra padding in headers in the items that are floated to the right of them
-         * We match the padding-tops of those floated items that appear right after a small
-         * header that is floated left.
-         * small header top-paddings only have three ranges:
-         * $smallHeadingVMarginDesktop  : Over 768px wide viewport
-         * $smallHeadingVMarginTablet : Over 480px wide viewport but under 768px.
-         * $smallHeadingVMarginMobile : Under 480px wide viewport
-         *
-         * But the floating behavior only even applies for ultra-wide (min-width: 1280px)
-         * So we only need to apply the extra padding to the top of content floated
-         * right, immediately after a small header which is marked as floating left.
-         * EDIT: Actually, we'll just make padding-top: vmarginHalf for
-         * small headers, like they're any other piece of content. This special
-         * case of + pre/blockquote isn't needed now.
-         * clear: both will cause the left column to "sync up"
-         */
-        h0, h1, h2, h3, h4, h5, h6, .small-heading, body:not(.big-h3) & h3
-          float: left
-          clear: both
+    body:not(.no-literate)
+      .bookmark-content
+        padding-left: 0
+        padding-right: 0
+        width: $split-content-width + $split-pre-width
+        max-width: none
+        >
+          .bookmark-synced-up-left
+            clear: both
+          /*.bookmark-synced-up-right
+            margin-top:$pad */
+          p, ul, ol, h0, h1, h2, h3, h4, h5, h6, pre, blockquote, dl, dt, dd
+            width: $split-content-width
+            padding-right: $pad
+            padding-left: $pad
+          codetabscontainer, pre, blockquote
+            width: $split-pre-width
+            padding-left: ($pad/2)
+            padding-right: ($pad/2)
+            float: right
+            clear: right
+            +
+              p, ul, ol
+                clear: both
+          p, ul, ol
+            float: left
+            clear: left
 
-        h0 + pre,
-        h0 + codetabscontainer,
-        h0 + blockquote,
-        h1 + pre,
-        h1 + codetabscontainer,
-        h1 + blockquote,
-        h2 + pre,
-        h2 + codetabscontainer,
-        h2 + blockquote,
-        h3 + pre,
-        h3 + codetabscontainer,
-        h3 + blockquote
-          padding-top: $bigHeadPadTop
-          margin-top: $vmargin
-        h4 + pre,
-        h4 + codetabscontainer,
-        h4 + blockquote,
-        h5 + pre,
-        h5 + codetabscontainer,
-        h5 + blockquote,
-        h6 + pre,
-        h6 + codetabscontainer,
-        h6 + blockquote,
-        .small-heading + pre,
-        .small-heading + codetabscontainer,
-        .small-heading + blockquote,
-          /* border-bottom: solid 1px rgba(black, 0.07) */
-          margin-top: $vmargin
-
-
-
-        h4, h5, h6, .small-heading, body:not(.big-h3) & h3
-          small-heading()
-
-        table
-          /* jordwalke: Moved the clearing only to here instead of the general table rule.
-           * Otherwise, the following layout is messed up when resizing the window to be narrow:
+          /* Allow content to float to the right of smaller headers, but then we need to adjust
+           * for the extra padding in headers in the items that are floated to the right of them
+           * We match the padding-tops of those floated items that appear right after a small
+           * header that is floated left.
+           * small header top-paddings only have three ranges:
+           * $smallHeadingVMarginDesktop  : Over 768px wide viewport
+           * $smallHeadingVMarginTablet : Over 480px wide viewport but under 768px.
+           * $smallHeadingVMarginMobile : Under 480px wide viewport
            *
-           *    `type Unix.error`
-           *    : Error codes for specific `Unix` module errors.
-           *
-           *    Value                | Meaning
-           *    :------------------- |:------------------------------------------
-           *    `EACCES`           | Permission denied
-           *    `EAGAIN`           | Resource temporarily unavailable; try again
-           *    `EBADF`            | Bad file descriptor
-           *    `EBUSY`            | Resource unavailable
-           *    `EEXISTS`          | File already exists
-           *    `EISDIR`           | Is a directory
-           *    `ENOENT`           | No such file or directory
-           *    `ENOTDIR`          | Not a directory
-           *    `ENOTEMPTY`        | Directory not empty
-           *    [See all](https://caml.inria.fr/pub/docs/manual-ocaml/libref/Unix.html#TYPEerror) |
-           *
-           *
-           *    `fun Unix.dup` : `(~cloexec:bool=?, ` `file_descr` `) => ` `file_descr`
-           *    : Return a new file descriptor referencing the same file as the given
-           *      descriptor. See `Unix.set_close_on_exec` for documentation on the `cloexec`
-           *      optional argument.
-           *      (Copied from stdlib docs)
+           * But the floating behavior only even applies for ultra-wide (min-width: 1280px)
+           * So we only need to apply the extra padding to the top of content floated
+           * right, immediately after a small header which is marked as floating left.
+           * EDIT: Actually, we'll just make padding-top: vmarginHalf for
+           * small headers, like they're any other piece of content. This special
+           * case of + pre/blockquote isn't needed now.
+           * clear: both will cause the left column to "sync up"
            */
-          clear: left
-          float: left
-          margin-left: $pad
-          margin-right: $pad
-          max-width: $content-width - $pad*2
+          h0, h1, h2, h3, h4, h5, h6, .small-heading, body:not(.big-h3) & h3
+            float: left
+            clear: both
 
-  body:not(.no-literate):not(.big-h3)
-    .bookmark-content > h3
-      small-heading()
+          h0 + pre,
+          h0 + codetabscontainer,
+          h0 + blockquote,
+          h1 + pre,
+          h1 + codetabscontainer,
+          h1 + blockquote,
+          h2 + pre,
+          h2 + codetabscontainer,
+          h2 + blockquote,
+          h3 + pre,
+          h3 + codetabscontainer,
+          h3 + blockquote
+            padding-top: $bigHeadPadTop
+            margin-top: $vmargin
+          h4 + pre,
+          h4 + codetabscontainer,
+          h4 + blockquote,
+          h5 + pre,
+          h5 + codetabscontainer,
+          h5 + blockquote,
+          h6 + pre,
+          h6 + codetabscontainer,
+          h6 + blockquote,
+          .small-heading + pre,
+          .small-heading + codetabscontainer,
+          .small-heading + blockquote,
+            /* border-bottom: solid 1px rgba(black, 0.07) */
+            margin-top: $vmargin
+
+
+
+          h4, h5, h6, .small-heading, body:not(.big-h3) & h3
+            small-heading()
+
+          table
+            /* jordwalke: Moved the clearing only to here instead of the general table rule.
+             * Otherwise, the following layout is messed up when resizing the window to be narrow:
+             *
+             *    `type Unix.error`
+             *    : Error codes for specific `Unix` module errors.
+             *
+             *    Value                | Meaning
+             *    :------------------- |:------------------------------------------
+             *    `EACCES`           | Permission denied
+             *    `EAGAIN`           | Resource temporarily unavailable; try again
+             *    `EBADF`            | Bad file descriptor
+             *    `EBUSY`            | Resource unavailable
+             *    `EEXISTS`          | File already exists
+             *    `EISDIR`           | Is a directory
+             *    `ENOENT`           | No such file or directory
+             *    `ENOTDIR`          | Not a directory
+             *    `ENOTEMPTY`        | Directory not empty
+             *    [See all](https://caml.inria.fr/pub/docs/manual-ocaml/libref/Unix.html#TYPEerror) |
+             *
+             *
+             *    `fun Unix.dup` : `(~cloexec:bool=?, ` `file_descr` `) => ` `file_descr`
+             *    : Return a new file descriptor referencing the same file as the given
+             *      descriptor. See `Unix.set_close_on_exec` for documentation on the `cloexec`
+             *      optional argument.
+             *      (Copied from stdlib docs)
+             */
+            clear: left
+            float: left
+            margin-left: $pad
+            margin-right: $pad
+            max-width: $split-content-width - $pad*2
+
+    body:not(.no-literate):not(.big-h3)
+      .bookmark-content > h3
+        small-heading()
+
+splitView($big-split-sidebar-width, $big-split-pre-width, $big-split-content-width)
+splitView($bigger-split-sidebar-width, $bigger-split-pre-width, $bigger-split-content-width)
+splitView($biggest-split-sidebar-width, $biggest-split-pre-width, $biggest-split-content-width)
 
 // ----------------------------------------------------------------------------
 // Header
@@ -1381,11 +1436,6 @@ insetCodeTabCodes()
 /**
  * Search UI.
  */
-@media (max-width: 768px) {
-  .bookmark-menubar {
-    display: none;
-  }
-}
 .bookmark-header {
   height: 52px;
 /* Total header height should be 52 = vmargin*2 + line-height(20) */
@@ -1394,7 +1444,7 @@ insetCodeTabCodes()
 .bookmark-header .bookmark-search-form {
   align-items: center;
   position: relative;
-  width: 100%;
+  /* width: 100%; */
   display: flex;
   line-height: 100%;
   z-index: 0;
@@ -1465,7 +1515,7 @@ searchIcon($color)
 
 
 
-$availableHeaderSpaceAboveSearchHits = $sidebar-width - 2*$headerPadding
+$availableHeaderSpaceAboveSearchHits = $smallest-sidebar-width - 2*$headerPadding
 $searchInputUnfocusedWidth = .8 * $availableHeaderSpaceAboveSearchHits
 .bookmark-header .bookmark-search-input {
   // Padding for search icon and close button
@@ -1484,7 +1534,7 @@ $searchInputUnfocusedWidth = .8 * $availableHeaderSpaceAboveSearchHits
   width: $searchInputUnfocusedWidth
   // Transition on border helps the appearance of flicker when styles load (see
   // Bookmark.js)
-  transition: width 220ms ease-in-out 0s, border-color 120ms ease-in-out 0s
+  transition: width 100ms ease-in-out 0s, border-color 100ms ease-in-out 0s
   height: $searchInputHeight;
   display: flex;
   line-height: 100%;
@@ -1515,7 +1565,7 @@ $searchInputUnfocusedWidth = .8 * $availableHeaderSpaceAboveSearchHits
 }
 .bookmark-header .bookmark-search-input:focus {
   /* Make it match the hits border color when focused */
-  border:1px solid $searchInputBorderColorFocus
+  border:1px solid $searchInputBorderColorFocus !important
 }
 
 .bookmark-header .bookmark-search-input::-webkit-input-placeholder
@@ -1662,7 +1712,7 @@ $closeIconDiameter = 14px
 
 @media (min-width: 500px) {
   .bookmark-hits-scroll {
-    width: $sidebar-width
+    width: $smallest-sidebar-width
   }
 }
 @media (max-width: 500px) {
@@ -1721,7 +1771,7 @@ $closeIconDiameter = 14px
 }
 
 .bookmark-content .bookmark-in-doc-highlight {
-  background-color: rgba(255,241,168,0.333);
+  background-color: rgba(255,241,168,0.333) !important;
   transition: background-color .2s ease-out .2s;
   background-clip: content-box
 }
@@ -1799,10 +1849,8 @@ $headerTopPadding = $vmarginQuarter + 2px
 
 
 /** Long press in chrome mobile might make the links focused */
-.bookmark-hits-scroll .bookmark-hits-list-page a.bookmark-hits-item
-  text-decoration: none
-  
 .bookmark-hits-scroll .bookmark-hits-list-page .bookmark-hits-item {
+  text-decoration: none
   noselect()
   cursor: pointer;
   color: $superGradedTxtColorLight
@@ -1848,6 +1896,9 @@ body.probably-has-keyboard .bookmark-hits-scroll:not(.scrolled-since-active-touc
   border-bottom: 1px solid $hits-item-border-cursor
 
 
+
+body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item:hover pre
+  background: $hitsItemHoverCodeBg
 /* Cursor rules only should apply when the user has a hardward keyboard */
 /* Hover rules should only apply when not on touch devices */
 body:not(.can-touch) .bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:hover:active pre,
@@ -1855,9 +1906,6 @@ body:not(.can-touch) .bookmark-hits-scroll:not(.scrolled-since-active-touches) .
 body.probably-has-keyboard .bookmark-hits-scroll .bookmark-hits-item.cursor pre,
 body.probably-has-keyboard body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item.cursor:hover pre
   background: $hitsItemCursorCodeBg
-
-body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item:hover pre
-  background: $hitsItemHoverCodeBg
 
 
 .bookmark-hits-scroll:not(.scrolled-since-active-touches) .bookmark-hits-item:active .bookmark-hits-item-button-contents {
@@ -1929,7 +1977,8 @@ body:not(.can-touch) .bookmark-hits-scroll .bookmark-hits-item:hover pre
 .bookmark-hits-scroll .bookmark-hits-item tr > code,
 .bookmark-hits-scroll .bookmark-hits-item td > code,
 .bookmark-hits-scroll .bookmark-hits-item th > code,
-.bookmark-hits-scroll .bookmark-hits-item p > code
+.bookmark-hits-scroll .bookmark-hits-item p > code,
+.bookmark-hits-scroll .bookmark-hits-item > .bookmark-hits-item-button-contents > code
   font-family: $mono-font
   font-size: 0.9em;
   background: $hitsCodeBg
@@ -2134,19 +2183,6 @@ a.big.button
     &, &:visited
       color: white
 
-@media (max-width: 480px) /* Mobile */
-  .bookmark-menubar
-    padding: $minipad
-    border-bottom: solid 1px $gradedLine
-
-@media (max-width: 768px) /* Mobile and tablet */
-  .bookmark-menubar
-    display: none
-  /*
-  body
-    // Prevent bouncy scrolling left/right on mobile.
-    overflow-x:hidden
-  */
 /**
  * Fix overly aggresive body scrolling on input focus for iOS:
  * https://stackoverflow.com/a/35675094
@@ -2157,17 +2193,35 @@ window
   overflow-y: auto !important;
   overflow-x: hidden;
   height: 100% !important;
+  
+
+.bookmark-content-root
+  padding-left: $smallest-sidebar-width
+
+@media (max-width: 480px) /* Mobile */
+  .bookmark-menubar
+    padding: $minipad
+    border-bottom: solid 1px $gradedLine
+
+@media (max-width: 768px) /* Mobile and tablet */
+  .bookmark-content-root
+    padding-left: 0px
+
+  .bookmark-menubar
+    display: none
+  /*
+  body
+    // Prevent bouncy scrolling left/right on mobile.
+    overflow-x:hidden
+  */
 
 @media (min-width: 768px) /* Desktop */
-  .bookmark-content-root
-    padding-left: $sidebar-width
-
   .bookmark-menubar
     position: absolute
     left: 0
     top: 0
     bottom: 0
-    width: $sidebar-width
+    width: $smallest-sidebar-width
     /*border-right: solid 1px $gradedLine */
 
   .bookmark-menubar.fixed
@@ -2206,9 +2260,11 @@ window
 
     color: $gradedTxtColorLighter
     font-weight: 500!important
-    &:hover, &:focus
+    &:hover
       text-decoration: none
       color: $linkColorHoverFocus
+    &:focus
+      text-decoration: underline
       
   a.level-0
   a.level-1
@@ -2218,8 +2274,10 @@ window
     font-weight: bold
     &, &:visited
       color: $gradedTxtColorLighter
-    &:hover, &:focus
+    &:hover
       color: $gradedTxtColorLighter*0.6
+    &:focus
+      text-decoration: underline
 
   a.level-2
     font-size: 1em
@@ -2306,10 +2364,6 @@ body.large-brief .bookmark-content p.bookmark-content-subtitle,
 .title-card
   max-height: 70vh;
   min-height: 60vh;
-  text-rendering: optimizeLegibility !important
-  -webkit-font-smoothing: antialiased !important
-  -moz-osx-font-smoothing: grayscale
-
 .title-card
   /* background: #1d3b47; */
   /* background-position: center center; */
@@ -2378,6 +2432,7 @@ body.large-brief .bookmark-content p.bookmark-content-subtitle,
   overflow-x:auto
   overflow-y:hidden
   margin-left: auto
+  width: auto;
 
 .fixedHeaderContainer ul.nav::-webkit-scrollbar
   display: none
@@ -2385,7 +2440,7 @@ body.large-brief .bookmark-content p.bookmark-content-subtitle,
 .fixedHeaderContainer .bookmark-search-form
   margin-right: auto
 
-@media only screen and (min-width: 1280px) {
+@media only screen and (min-width: $big-split-width-threshold) {
   .fixedHeaderContainer {
       flex-shrink:0
   }
@@ -2442,15 +2497,48 @@ body.large-brief .bookmark-content p.bookmark-content-subtitle,
   box-sizing: border-box;
   display: -webkit-box;
   display: flex;
-  font-size: .9em;
   height: auto;
   -webkit-box-pack: center;
   justify-content: center;
   margin: 0;
-  padding: 10px;
   -webkit-transition: background-color .3s;
   transition: background-color .3s
 }
+
+/* Links start out tiny and then a media rule enlarges them as the screen width increases */
+@media only screen and (max-width: 480px) {
+  .fixedHeaderContainer ul li a {
+    font-size: 7px
+    padding: 3px;
+  }
+}
+@media only screen and (min-width: 480px) {
+  .fixedHeaderContainer ul li a {
+    font-size: 9px
+    padding: 5px;
+  }
+}
+@media only screen and (min-width: 735px) {
+  .fixedHeaderContainer ul li a {
+    font-size: 10px
+    padding: 5px;
+  }
+}
+
+@media only screen and (min-width: 1080px) {
+  .fixedHeaderContainer ul li a {
+    font-size: 12px
+    padding: 7px;
+  }
+}
+
+@media only screen and (min-width: 1480px) {
+  .fixedHeaderContainer ul li a {
+    font-size: 12px
+    padding: 8px;
+  }
+}
+
 
 body.current-page-number-0 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-0 > a,
 body.current-page-number-1 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-1 > a,
@@ -2466,9 +2554,14 @@ body.current-page-number-10 .fixedHeaderContainer ul.nav li.site-nav-group-page-
 body.current-page-number-11 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-11 > a,
 body.current-page-number-12 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-12 > a,
 body.current-page-number-13 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-13 > a,
-body.current-page-number-12 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-12 > a
+body.current-page-number-14 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-14 > a,
+body.current-page-number-15 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-15 > a,
+body.current-page-number-16 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-16 > a,
+body.current-page-number-17 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-17 > a,
+body.current-page-number-18 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-18 > a,
+body.current-page-number-19 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-19 > a,
+body.current-page-number-20 .fixedHeaderContainer ul.nav li.site-nav-group-page-index-20 > a
   color: $headerLinkColorCurrent
-  font-weight:bold
 
 .fixedHeaderContainer ul.nav li > a:focus,
 .fixedHeaderContainer ul.nav li > a:hover
@@ -2525,7 +2618,7 @@ body.current-page-number-12 .fixedHeaderContainer ul.nav li.site-nav-group-page-
   flex-direction: row
 }
 
-@media only screen and (min-width: 1280px) {
+@media only screen and (min-width: $big-split-width-threshold) {
   .fixedHeaderContainer ul.nav {
     display: -webkit-box;
     display: flex;

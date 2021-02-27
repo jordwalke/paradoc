@@ -13,6 +13,43 @@ var headerHeight = 52;
 var urlBasename = function (s) {
   return s.split("/").pop().split("#")[0].split("?")[0];
 };
+var urlDir = function (s) {
+  var lst =  s.split("/");
+  var withoutLast = lst.pop();
+};
+var indexify = function(path) {
+  var splits = path.split('/');
+  if(splits.length > 0) {
+    var last = splits[splits.length - 1];
+    if (path.lastIndexOf(".js") !== path.length - 3) {
+      return path + '/index.js';
+    } else {
+      return path;
+    }
+  }
+};
+
+
+var kebabToWords = function(s) {
+  var ss = s.replace(
+    /-./g,
+    function(x) {
+      return ' ' + x.toUpperCase()[1];
+    }
+  );
+  return ss.length > 0 ? s[0].toUpperCase() + ss.substr(1) : ss;
+};
+
+/**
+ * Must supply href as written in dom node, not a.href which is fully resolved.
+ * TODOSecurityAudit:
+ */
+var isHrefAttributeLocal = function (relativeToPageUrl, href) {
+  return href.indexOf('file://') !== 0 &&
+    href.indexOf('https://') !== 0 &&
+    href.indexOf('http://') !== 0;
+};
+
 var urlExtensionlessBasename = function (s) {
   return s.split("/").pop().split("#")[0].split("?")[0].replace(".html", "");
 };
@@ -44,8 +81,6 @@ function dictToSearchParams(dict) {
   }
   return "?" + segs.join("&");
 }
-
-function locationToQueryParams(windowLocation) {}
 
 var Bookmark = {};
 var mapKeys = function (dict, onPage) {
@@ -151,6 +186,81 @@ var keepOnlyKeys = function (dict, f) {
   return result;
 };
 
+/**
+ * Inserts/moves a key/val after `afterKey`.
+ * Errors if `afterKey` is not present.
+ * Does nothing if `beforeKey` is the first key and `afterKey` is the last.
+ *
+ * The "currently viewed" page is the first in the list regardless of if it is
+ * supplied to initial page config items.  Then explicitly specified pages
+ * passed to initial config options tend to be the next in the key order.
+ * Then later discovered pages (via `nextPage` are added to the end of the
+ * dictionary).
+ * We will try to build off of the "first" key assuming that's the most
+ * important one to have first. So we pin the first key in place and try to
+ * build off of that if possible (in a circular manner if necessary).
+ */
+var ensureKeyValOrderCircular = function (dict, preKey, postKey) {
+  if(!(postKey in dict) || !(preKey in dict)) {
+    throw new Error(
+      'Key ' +
+      postKey +
+      ' and ' +
+      preKey +
+      ' are not both in pages. This is a problem with Bookmark implementation.'
+    );
+  }
+  var result = {};
+  var first = null;
+  var last = null;
+  for (var k in dict) {
+    if(first === null) {
+      first = k;
+    } else {
+      last = k;
+    }
+  }
+  if(first === postKey && last === preKey) {
+    return dict;
+  }
+  var inserted = false;
+  for (var k in dict) {
+    if(k === postKey && postKey !== first) {
+      result[preKey] = dict[preKey];
+      result[postKey] = dict[postKey];
+    } else if(k === preKey) {
+      result[k] = dict[k];
+      result[postKey] = dict[postKey];
+    } else {
+      result[k] = dict[k];
+    }
+  }
+  return result;
+};
+
+
+var moveKeyToFront = function(dict, key) {
+  var result = {};
+  if(key in dict) {
+    result[key] = dict[key];
+  }
+  for(var k in dict) {
+    result[k] = dict[k];
+  }
+  return result;
+};
+
+var indexOfKey = function(dict, key) {
+  var i = -1;
+  for(var k in dict) {
+    i++;
+    if(k === key) {
+      return i;
+    }
+  }
+  return -1;
+};
+
 var resultsByPageKeyLen = function (resultsByPageKey) {
   var totalLen = 0;
   for (var pageKey in resultsByPageKey) {
@@ -160,56 +270,205 @@ var resultsByPageKeyLen = function (resultsByPageKey) {
 };
 
 /**
+ * Extracts the ? query param string from a url. It will always be after the
+ * hash tag.
+ */
+var splitHrefHashAndQueryString = function(s) {
+  var querySearchLoc = href.indexOf("?");
+  var queryParamString = null;
+  if (querySearchLoc !== -1) {
+    queryParamString = s.substr(querySearchLoc + 1);
+    s = s.substr(0, querySearchLoc);
+  }
+  var hashSearchLoc = href.indexOf("#");
+}
+
+var areEqualPathArrs = function(a1, a2) {
+  if(a1.length !== a2.length) {
+    return false;
+  }
+  for(var i = 0; i < a1.length; i++) {
+    if(a1[i] !== a2[i]) {
+      return false;
+    }
+  }
+  return true;
+};
+
+
+/**
+ * 
  * Urls like blah.html#foo/bar#another-hash
  * Are interpreted as being another way to reference the page
  * foo/bar.html#another-hash (Currently everything relative from the
- * timeTemplate)
+ * timeTemplate). This function analyzes any link that is not yet in the
+ * standard form `siblingPage.html#hash?queryParams` and returns the abstract
+ * data about that link (which sibling page it refers to, which hash/query
+ * params etc) so that the abstract link information can be reasoned about
+ * and/or transformed into a "single page bundle" form
+ * rootPage.html#sibingPage#hash?queryParams if necessary.
+ *
+ * It also normalizes links that might not have been converted properly when
+ * ported to `.html` files (from `.md` files).
+ * You may have forgotten to change a link from `siblingDoc.md` to
+ * `siblingDoc.html`. This function also fixes that.
+ *
+ * - relativeToPageUrl: Some hrefs will be totally expanded and in terms of the
+ *   page that was *originally* rendered at the time the markup was generated
+ *   (this is the Save As case in Chrome).  This function will make sure to
+ *   normalize hrefs if they are in terms of the originally expanded href the
+ *   page was rendered at when saved. Docs must all reside in the same
+ *   directory, and only docs (and docs assets) may reside in the same
+ *   directory.
+ *
+ * Returns one of two types of links:
+ * 
+ * External: A link to an external page (not within the documentation).
+ *
+ *     {
+ *       type: 'external',
+ *       href: full href
+ *     }
+ *
+ * Internal: A link to a page within the documentation.
+ *
+ *     {
+ *       type: 'internal',
+ *       asAnEmbeddedSubpageOfEntrypointPageKey: urlBasenameRootLowerCase,
+ *       pageKey: urlBasenameRootLowerCase,
+ *       pageExtension: hrefExtension,
+ *       hashContents: hash.substr(1),
+ *       queryParams: queryParams,
+ *     }
+ *
+ * For local URLs, will expect hashes to appear *before* the query params
+ * (which is not standard but looks better for this use case).
+ * 
+ * Normalizes links across the various doc workflows:
+ *
+ * - When using Chrome "Save As": Links to internal doc pages will become
+ *   hardcoded to the absolute file path on disk, *including* links to hashes
+ *   within *the same page*!
+ *   - #foo becomes file://Path/To/yourPage.html#foo
+ *   - ./siblingPage.html becomes file://Path/To/siblingPage.html
+ *
+ * These urls are expanded into the "written" attribute itself, not even after
+ * accessing the fully resolved href.
+ *
+ * When running in pre-rendered, and or compressed mode, *not* from "Save As",
+ * you will still have an originallyRenderedAtUrl, but the hrefAsWritten will
+ * not be expanded out to it.
+ *
+ * If there is an `originallyRenderedAtUrl` and we see a url that has the same
+ * dir as the `originallyRenderedAtUrl` then it's a Chrome "Save As" link local
+ * to the docs.
+ * If there is an `originallyRenderedAtUrl` and we see a url that does *not*
+ * have the same dir as `originallyRenderedAtUrl`, but has the same dir as
+ * `currentPageUrl`, it's a link local to the docs (but not Chrome Save As).
+ * 
  */
-var getEffectivePageAndHashFromLocation = function (windowLocation) {
-  var href = windowLocation.href;
-  var searchLoc = href.indexOf("?");
+var getLink = function (originallyRenderedPageKey, originallyRenderedAtUrl, currentPageUrl, fullyResolvedLinkHref) {
+
+  var currentPageOrigin = currentPageUrl.origin;
+  var currentPagePathArr = currentPageUrl.pathname.split('/');
+  var currentPageDirPathArr = currentPagePathArr.slice(0, currentPagePathArr.length - 1);
+
+  var fullyResolvedLinkUrl = new URL(fullyResolvedLinkHref);
+  var fullyResolvedLinkOrigin = fullyResolvedLinkUrl.origin;
+  var fullyResolvedLinkPathArr = fullyResolvedLinkUrl.pathname.split('/');
+  var fullyResolvedLinkDirPathArr = fullyResolvedLinkPathArr.slice(0, fullyResolvedLinkPathArr.length - 1);
+
+  var currentPageHasSameOrigin = currentPageOrigin === fullyResolvedLinkOrigin;
+  var currentPageHasSameDir = areEqualPathArrs(currentPageDirPathArr, fullyResolvedLinkDirPathArr);
+  var isLocalLink = false;
+  if(currentPageHasSameOrigin && currentPageHasSameDir) {
+    isLocalLink = true;
+  } else if(originallyRenderedAtUrl){
+    var originallyRenderedAtOrigin = originallyRenderedAtUrl.origin;
+    var originallyRenderedAtPathArr = originallyRenderedAtUrl.pathname.split('/');
+    var originallyRenderedAtDirPathArr = originallyRenderedAtPathArr.slice(0, originallyRenderedAtPathArr.length - 1);
+    
+    var originallyRenderedAtHasSameOrigin = originallyRenderedAtOrigin === fullyResolvedLinkOrigin;
+    var originallyRenderedAtHasSameDir = areEqualPathArrs(originallyRenderedAtDirPathArr, fullyResolvedLinkDirPathArr);
+    if(originallyRenderedAtHasSameOrigin && originallyRenderedAtHasSameDir) {
+      isLocalLink = true;
+    }
+  }
+  if(!isLocalLink) {
+    return {
+      type: 'external',
+      href: fullyResolvedLinkHref
+    };
+  }
+  var hashAndQueryString = fullyResolvedLinkUrl.hash;  // Includes hash sign
+  var hashStr =
+    hashAndQueryString === '' || hashAndQueryString[0] !== '#' ? '' :
+    hashAndQueryString.indexOf("?") !== -1 ? hashAndQueryString.substr(1, hashAndQueryString.indexOf("?") - 1) :
+    hashAndQueryString.substr(1);
+  var queryStr =
+    hashAndQueryString.indexOf("?") == -1 ? '' :
+    hashAndQueryString.substr(hashAndQueryString.indexOf("?") + 1);
   var queryParams = null;
-  if (searchLoc !== -1) {
-    var searchParams = href.substr(searchLoc + 1);
+  if (queryStr !== '') {
     var queryParams = {};
-    var params = searchParams.split("&");
+    var params = queryStr.split("&");
     for (var i = 0; i < params.length; i++) {
       var param = params[i].split("=");
       queryParams[decodeURIComponent(param[0])] = decodeURIComponent(param[1] || "");
     }
   }
 
-  var urlBasenameRootLowerCase = urlBasename(windowLocation.pathname)
-    .replace(".html", "")
-    .replace(".htm", "")
-    .toLowerCase()
-    .toLowerCase();
-  urlBasenameRootLowerCase = urlBasenameRootLowerCase.replace(".bookmark-rendered", "");
-  urlBasenameRootLowerCase = urlBasenameRootLowerCase.replace(".bookmark-inlined", "");
+  var asEmbeddedSubpageOf;
+  if (!!originallyRenderedPageKey) {
+    asEmbeddedSubpageOf = originallyRenderedPageKey;
+  } else {
+    var hrefBasename = urlBasename(fullyResolvedLinkHref);
+    var hrefBasenameExtensionIndex = hrefBasename.lastIndexOf('.');
+    var hrefExtension = hrefBasenameExtensionIndex !== -1 ? 
+      hrefBasename.substr(hrefBasenameExtensionIndex + 1) :
+      null;
+    var hrefExtensionlessBasename = hrefBasenameExtensionIndex !== -1 ? 
+      hrefBasename.substr(0, hrefBasenameExtensionIndex) :
+      hrefBasename;
+    // This is just the file portion.
+    var urlBasenameRootLowerCase = hrefExtensionlessBasename.toLowerCase();
+    urlBasenameRootLowerCase = urlBasenameRootLowerCase.replace(".bookmark-rendered", "");
+    urlBasenameRootLowerCase = urlBasenameRootLowerCase.replace(".bookmark-inlined", "");
+    asEmbeddedSubpageOf = urlBasenameRootLowerCase;
+  }
 
-  searchLoc = windowLocation.hash.indexOf("?");
-  var hash = searchLoc === -1 ? windowLocation.hash : windowLocation.hash.substr(0, searchLoc);
-  if (hash[0] !== "#" || (hash[0] === "#" && hash.lastIndexOf("#") === 0)) {
+  // If there's no hash string or there is a hash string but it doesn't have
+  // another hash inside of it (then it's not an embedded single doc page
+  // link). It's either a link inside the current page (regular hash), or not
+  // even a hash link at all.
+  if (hashStr === '' || hashStr.indexOf("#") === -1) {
     return {
-      loadingFromPageKey: urlBasenameRootLowerCase,
-      pageKey: urlBasenameRootLowerCase,
-      hashContents: hash.substr(1),
+      type: 'internal',
+      // TODO: This should be null in this case.
+      asAnEmbeddedSubpageOfEntrypointPageKey: asEmbeddedSubpageOf,
+      pageKey: asEmbeddedSubpageOf,
+      pageExtension: hrefExtension,
+      hashContents: hashStr,
       queryParams: queryParams,
     };
   } else {
-    var effectivePageKey = hash
-      .substr(1, hash.lastIndexOf("#") - 1)
+    // It's an embedded hash link for single doc mode.
+    var effectivePageKey =
+      (hashStr.indexOf("#") === -1 ? hashStr : hashStr.substr(0, hashStr.indexOf("#")))
       .replace(".html", "")
       .replace(".htm", "")
       .toLowerCase();
     return {
-      loadingFromPageKey: urlBasenameRootLowerCase,
+      type: 'internal',
+      asAnEmbeddedSubpageOfEntrypointPageKey: asEmbeddedSubpageOf,
       pageKey: effectivePageKey,
-      hashContents: hash.substr(hash.lastIndexOf("#") + 1),
+      pageExtension: hrefExtension,
+      hashContents: hashStr.substr(hashStr.lastIndexOf("#") + 1),
       queryParams: queryParams,
     };
   }
 };
+
 
 var isNodeSearchHit = function (node) {
   return (
@@ -245,20 +504,6 @@ var isNodeSearchHit = function (node) {
   );
 };
 
-var getPageDataForUrl = function (windowLocation, pageConfig) {
-  var effectivePageKeyAndHash = getEffectivePageAndHashFromLocation(windowLocation, pageConfig);
-  if (!pageConfig[effectivePageKeyAndHash.pageKey]) {
-    console.error(
-      "Current effective page basename ",
-      effectivePageKeyAndHash.pageKey,
-      "is not in pageConfig",
-      pageConfig
-    );
-    return null;
-  }
-  return pageConfig[effectivePageKeyAndHash.pageKey];
-};
-
 var SUPPORTS_SEARCH_TABBING = false;
 // Number of headers in search results per page.
 var NUM_HEADERS = 1;
@@ -286,14 +531,14 @@ function pageifiedIdForHash(slug, pageKey) {
   return pageKey + "#" + slug;
 }
 
-function linkifidIdForHashAndPage(slug, pageKey) {
+function fullyQualifiedHeaderId(slug, pageKey) {
   return BOOKMARK_LINK_ID_PREFIX + pageifiedIdForHash(slug, pageKey);
 }
 
 /**
  * Strips the linkified prefix and page prefix.
  */
-function hashForLinkifiedPageifiedId(s) {
+function hashForFullFullyQualifiedHeaderId(s) {
   var withoutLinkifiedPrefix =
     s.indexOf(BOOKMARK_LINK_ID_PREFIX) === 0 ? s.substring(BOOKMARK_LINK_ID_PREFIX.length) : s;
   var splitOnHash = withoutLinkifiedPrefix.split("#");
@@ -319,7 +564,10 @@ var queryContentsViaIframe = function (url, onDoneCell, onFailCell) {
       window.removeEventListener("message", listenerID);
       if (onDoneCell.contents) {
         window.clearTimeout(timeout);
+        var start = Date.now();
         onDoneCell.contents(e.data.content);
+        var end = Date.now();
+        // console.log(end-start,'spent loading ' + url);
       }
     }
   });
@@ -421,17 +669,6 @@ var customScrollIntoView = function (props) {
     var newTop = elementOffsetInContainer - topMargin;
     scrollerElement.scrollTo({ left: 0, top: newTop, behavior: smooth ? "smooth" : "auto" });
   }
-};
-
-var defaultSlugifyConfig = {
-  shorter: false,
-  h0: false,
-  h1: true,
-  h2: true,
-  h3: true,
-  h4: true,
-  h5: false,
-  h6: false,
 };
 
 var defaultSidenavifyConfig = {
@@ -1521,6 +1758,49 @@ function annotateSlugsOnTreeNodes(hierarchicalDoc, slugContributions) {
   forEachHierarchy(appendSlug, hierarchicalDoc);
 }
 
+/**
+ * 1. Fixes links that pointed to /page.md or /page to point to page.html when
+ * not in single docs mode.  This makes it easier to port files over to
+ * Bookmark by just renaming them to .html and adding the script header.
+ * However, you should fix up these links too so that your markdown rendered
+ * docs render correctly on github.
+ * 2. Changes links from something/ to something.html.
+ * TODO: Should probably not do any anchor link rewriting to links to
+ * documents. (if you have an image.png anchor link and a page key named
+ * image).
+ *
+ * When rendering in development mode, we need to turn links like:
+ * foo.html into ./foo.html
+ */
+function fixAllAnchorLinksUnderRoot(runner, rootNode) {
+  $(rootNode).find('a').each(function() {
+    var node = this;
+    fixupHrefOnAnchor(runner, node);
+  });
+}
+
+var fixupHrefOnAnchor = function(runner, node) {
+  var hrefAsWritten = node.getAttribute('href');
+  var fullHref = node.href;
+  var linkInfo = getLink(runner.discoveredToBePrerenderedPageKey, runner.discoveredToBePrerenderedAtUrl, window.location, fullHref);
+  if (linkInfo.type !== 'external' && node.href) {
+    var pageKey = linkInfo.pageKey;
+    if(runner.pageState[pageKey]) {
+      var hash = linkInfo.hashContents;
+      var queryParams = linkInfo.queryParams;
+      var queryParamsString = queryParams ? dictToSearchParams(queryParams) : "";
+      var slugAndQueryParams = hash + queryParamsString;
+      var fullyResolvedNodeHrefBefore = node.href;
+      // TODO: Don't think I need to escape this if setting the attribute
+      // and not injecting into html (double escaped).
+      node.href = runner.constructEscapedBaseUrlFromRoot(pageKey, slugAndQueryParams);
+      // if(fullyResolvedNodeHrefBefore !== node.href) {
+        // console.log("FIXED UP ANCHOR:", fullyResolvedNodeHrefBefore, node.href);
+      // }
+    }
+  }
+};
+
 var substituteSiteTemplateContentsWithHeaderPropsOnFetch = function (
   siteTemplate,
   normalizedPageKeyForBasename,
@@ -1542,10 +1822,12 @@ var substituteSiteTemplateContentsWithHeaderPropsOnFetch = function (
     }
   );
   siteTemplate = siteTemplate.replace(
-    new RegExp("\\$\\{Bookmark\\.Header\\.([^:\\}]*)}", "g"),
-    function (matchString, field) {
+    new RegExp("\\$\\{Bookmark\\.Header\\.([^:\\}\\|]*)(\\|[^}]*)?}", "g"),
+    function (matchString, field, defaultVal) {
       if (field !== "siteTemplate" && field in headerProps) {
         return escapeHtml(headerProps[field]);
+      } else if(defaultVal && defaultVal[0] === '|') {
+        return escapeHtml(defaultVal.substr(1));
       }
     }
   );
@@ -1568,19 +1850,19 @@ var substituteSiteTemplateContentsWithHeaderPropsOnFetch = function (
  * Main entrypoint script include (when included from an index.html or
  * foo.html).
  *
- *     <script start src="pathto/Bookmark.js"></script>
+ *     <script start src="pathto/Paradoc.js"></script>
  *
  * Included in a name.md.html markdown document or name.styl.html Stylus
  * document at the start of file
  *
- *     <script src="pathto/Bookmark.js"></script>
+ *     <script src="pathto/Paradoc.js"></script>
  *     # Rest of markdown here
  *     - regular markdown
  *     - regular markdown
  *
  * or:
  *
- *     <script src="pathto/Bookmark.js"></script>
+ *     <script src="pathto/Paradoc.js"></script>
  *     Rest of .styl document here:
  *
  * As a node script which will bundle your page into a single file assuming you've run npm install.
@@ -1619,7 +1901,7 @@ function detectMode() {
       return "bookmarkContentQuery";
     } else {
       // The user double clicked on an .html markdown file that has the
-      // Bookmark.js bootstrap <script> tag in it.
+      // Paradoc.js bootstrap <script> tag in it.
       return "bookmarkEntrypoint";
     }
   }
@@ -1634,10 +1916,17 @@ var MODE = detectMode();
  * 3. settimeout 0 handler.
  */
 if (MODE === "bookmarkNodeMode") {
-  if (process.argv && process.argv.length > 2 && process.argv[2] === "bundle") {
+  if (process.argv && process.argv.length > 2) {
+    var relFilePath = process.argv[2];
+    var path = require("path");
+    var absFilePath = path.resolve(process.cwd(), relFilePath);
     var fs = require("fs");
     var path = require("path");
     var Inliner = require("inliner");
+    if(!fs.existsSync(absFilePath)) {
+      console.error('File ' + absFilePath + ' does not exist');
+      process.exit(1);
+    }
 
     var siteDir = __dirname;
 
@@ -1655,12 +1944,12 @@ if (MODE === "bookmarkNodeMode") {
     var cmd =
       pathToChrome +
       " " +
-      path.join(siteDir, "..", "README.html") +
+      path.join(siteDir, "..", "what-and-why.html") +
       " --headless --dump-dom --virtual-time-budget=400";
     var rendered = require("child_process").execSync(cmd).toString();
 
-    var renderedHtmlPath = path.join(siteDir, "..", "README.bookmark-rendered.html");
-    var indexHtmlPath = path.join(siteDir, "..", "README.bookmark-inlined.html");
+    var renderedHtmlPath = path.join(siteDir, "..", "what-and-why.bookmark-rendered.html");
+    var indexHtmlPath = path.join(siteDir, "..", "what-and-why.bookmark-inlined.html");
     fs.writeFileSync(renderedHtmlPath, rendered);
 
     console.log("INLINING PAGE: ", indexHtmlPath);
@@ -1688,6 +1977,8 @@ if (MODE === "bookmarkNodeMode") {
       fs.writeFileSync(indexHtmlPath, html);
       process.exit(0);
     });
+  } else {
+    console.error('Make sure you supply a path to the file you want to use as the entrypoint of the bundle. You have omitted it.');
   }
 } else if (MODE === "bookmarkContentQuery") {
 
@@ -1805,6 +2096,8 @@ if (MODE === "bookmarkNodeMode") {
       // lines normalized.
       var markdown = normalizeMarkdownResponse(plaintexts[0].innerText);
       var markdownNormalizedYaml = normalizeYamlMarkdownComments(markdown);
+      // In this entrypoint mode, we still parse the header even though it will be done again.
+      // The reason is so that we can extract out the site template.
       var markdownAndHeader = parseYamlHeader(markdownNormalizedYaml, window.location.pathname);
       if (typeof window.BookmarkTemplate === "undefined") {
         window.BookmarkTemplate = {};
@@ -1818,47 +2111,39 @@ if (MODE === "bookmarkNodeMode") {
       window.BookmarkTemplate.prefetchedCurrentPageMarkdownAndHeader = markdownNormalizedYaml;
       // Set the variables for templates to read from.
       // https://www.geeksforgeeks.org/how-to-replace-the-entire-html-node-using-javascript/
-      if (markdownAndHeader.headerProps.siteTemplate) {
-        var templateFetchStart = Date.now();
-        /**
-         * The iframe's onDone will fire before the document's readystatechange 'complete' event.
-         */
-        var onDone = function (siteTemplate) {
-          var templateFetchEnd = Date.now();
-          console.log("fetching SITE TEMPLATE took", templateFetchEnd - templateFetchStart);
-          var yetAnotherHtml = document.open("text/html", "replace");
-          // If you want to listen for another readystatechange 'complete'
-          // after images have loaded you have to create yetAnotherHtml This
-          // isn't really needed since we don't listen to this.  Make sure to
-          // hide the content while it is loading, since .write replaces.
-          // flatdoc:ready will reveal it after images load.
-          siteTemplate = substituteSiteTemplateContentsWithHeaderPropsOnFetch(
-            siteTemplate,
-            normalizedPageKeyForBasename,
-            markdownAndHeader.headerProps
-          );
-          // The site template should also have
-          //  <script>document.body.style="display:none" </script>
-          //  So that when pre-rendered it is also correctly hidden
-          yetAnotherHtml.write(siteTemplate);
-          yetAnotherHtml.close();
-        };
-        var onDoneCell = { contents: onDone };
-        var onFailCell = {
-          contents: (err) => {
-            console.error(err);
-          },
-        };
-        queryContentsViaIframe(markdownAndHeader.headerProps.siteTemplate, onDoneCell, onFailCell);
-      } else {
-        console.error(
-          "You are loading a Bookmark doc from a markdown file, but that " +
-            "markdown doc does not specify a siteTemplate: in its yaml header." +
-            "Or, you might have forgotten to write your script tag *inside* your template like this:" +
-            "(note the special fromSiteTemplate attribute) " +
-            '<script charset="UTF-8" fromSiteTemplate src="site/Bookmark.js"> </script>'
+      var siteTemplate = markdownAndHeader.headerProps.siteTemplate || 'siteTemplate.html';
+      console.log("Using default site template - assumed to be at ./siteTemplate.html. You can customize this in your markdown 'yaml' header siteTemplate: field.");
+      var templateFetchStart = Date.now();
+      /**
+       * The iframe's onDone will fire before the document's readystatechange 'complete' event.
+       */
+      var onDone = function (siteTemplate) {
+        var templateFetchEnd = Date.now();
+        console.log("fetching SITE TEMPLATE took", templateFetchEnd - templateFetchStart);
+        var yetAnotherHtml = document.open("text/html", "replace");
+        // If you want to listen for another readystatechange 'complete'
+        // after images have loaded you have to create yetAnotherHtml This
+        // isn't really needed since we don't listen to this.  Make sure to
+        // hide the content while it is loading, since .write replaces.
+        // `handleReady` will reveal it after images load.
+        siteTemplate = substituteSiteTemplateContentsWithHeaderPropsOnFetch(
+          siteTemplate,
+          normalizedPageKeyForBasename,
+          markdownAndHeader.headerProps
         );
-      }
+        // The site template should also have
+        //  <script>document.body.style="display:none" </script>
+        //  So that when pre-rendered it is also correctly hidden
+        yetAnotherHtml.write(siteTemplate);
+        yetAnotherHtml.close();
+      };
+      var onDoneCell = { contents: onDone };
+      var onFailCell = {
+        contents: (err) => {
+          console.error(err);
+        },
+      };
+      queryContentsViaIframe(siteTemplate, onDoneCell, onFailCell);
     } else {
       console.error(
         "There isn't exactly one plaintext tag inside of " +
@@ -1917,65 +2202,105 @@ if (MODE === "bookmarkNodeMode") {
     };
 
     /**
+     * Explicit page config will override the same config from header props.
+     */
+    Flatdoc.getPageConfig = function(configKey, pageData, defaultVal) {
+      if(pageData.explicitlySpecifiedPageConfig && pageData.explicitlySpecifiedPageConfig[configKey]) {
+        return pageData.explicitlySpecifiedPageConfig[configKey];
+      } else if(pageData.markdownAndHeader.headerProps && pageData.markdownAndHeader.headerProps[configKey]) {
+        return pageData.markdownAndHeader.headerProps[configKey];
+      } else {
+        return defaultVal;
+      }
+    };
+    /**
+     * Gets the page config from explicit config or header prop, and normalizes
+     * it to a boolean value or throws.
+     */
+    Flatdoc.getPageConfigBool = function(configKey, pageData, defaultVal) {
+      if(pageData.explicitlySpecifiedPageConfig && pageData.explicitlySpecifiedPageConfig[configKey]) {
+        return !!pageData.explicitlySpecifiedPageConfig[configKey];
+      } else if(pageData.markdownAndHeader.headerProps && pageData.markdownAndHeader.headerProps[configKey]) {
+        var val = pageData.markdownAndHeader.headerProps[configKey];
+        if(val.toLowerCase() === 'true') {
+          return true;
+        } else if(val.toLowerCase() === 'false') {
+          return false;
+        } else {
+          console.warn(
+            'Header for page ' + pageData.___pageKeyForErrorMessages +
+            ' has invalid value for property ' + configKey +
+            '. It should be either true or false, but was specified as ' + val
+          );
+        }
+      } else {
+        return defaultVal;
+      }
+    };
+
+    Flatdoc.emptyPageData = function(pageKey) {
+      return {
+        ___pageKeyForErrorMessages: pageKey,
+        explicitlySpecifiedPageConfig: null,
+        fetcher: null,
+        markdownAndHeader: null,
+        contentContainerNode: null,
+        menuContainerNode: null,
+        hierarchicalDoc: null,
+        hierarchicalIndex: null
+      }
+    }
+
+    /**
      * Simplified easy to use API that calls the underlying API.
      */
     Flatdoc.go = function (options) {
       var pageState = {};
       var actualOptions = {
-        searchFormId: options.searchFormId,
-        searchHitsId: options.searchHitsId,
-        versionButtonId: options.versionButtonId,
-        versionPageIs: options.versionPageIs ? options.versionPageIs.toLowerCase() : null,
-        searchBreadcrumbContext: options.searchBreadcrumbContext,
-        slugify: options.slugify || defaultSlugifyConfig,
-        slugContributions: options.slugContributions || defaultSlugContributions,
-        sidenavify: options.sidenavify || defaultSidenavifyConfig,
         pageState: pageState,
-        effectiveHref: "",
-        runPrerenderedInSingleDocsMode: options.runPrerenderedInSingleDocsMode,
         // Could flip to true
-        discoveredDocsToBePrerendered: false,
+        discoveredToBePrerenderedAtUrl: null,
+        discoveredToBePrerenderedPageKey: null,
+        pageTemplateOptions: {
+          runPrerenderedInSingleDocsMode: options.runPrerenderedInSingleDocsMode,
+          runDevelopmentInSingleDocsMode: options.runDevelopmentInSingleDocsMode,
+          sidenavify: options.sidenavify || defaultSidenavifyConfig,
+          slugContributions: options.slugContributions || defaultSlugContributions,
+          searchFormId: options.searchFormId,
+          searchHitsId: options.searchHitsId,
+          versionButtonId: options.versionButtonId,
+          versionPageIs: options.versionPageIs ? options.versionPageIs.toLowerCase() : null,
+        }
       };
       if (options.stylus) {
         actualOptions.stylusFetcher = Flatdoc.docPage(options.stylus);
       }
-      if (!options.pages) {
-        alert("Error, no pages provided in Bookmark options");
-        console.error("Error, no pages provided in Bookmark options");
-      } else {
-        /**
-         * So we know which key to place first in the page data - so it is
-         * fetched first, and rendered first in search results.
-         */
-        var effectivePageAndHashFromLocation = getEffectivePageAndHashFromLocation(window.location);
-        var pages = options.pages;
-        if(pages[effectivePageAndHashFromLocation.pageKey]) {
-          // Make it first, if it was a valid one
-          pageState[effectivePageAndHashFromLocation.pageKey] = null;
-        }
-        var i = 0;
-        for (var pageKey in pages) {
-          var pageKeyLowerCase = pageKey.toLowerCase();
-          var page = pages[pageKey];
-          pageState[pageKeyLowerCase] = {
-            originalKeyIndex: i,
-            originalConfigKey: pageKey,
-            originalPageConfig: pages[pageKey],
-            fetcher: null,
-            markdownAndHeader: null,
-            contentContainerNode: null,
-            menuContainerNode: null,
-            hierarchicalDoc: null,
-            hierarchicalIndex: null,
-          };
-          Flatdoc.setFetcher(pageKeyLowerCase, pageState[pageKeyLowerCase]);
-          i++;
-        }
-        if (options.highlight) {
-          actualOptions.highlight = options.highlight;
-        }
-        var runner = Flatdoc.run(actualOptions);
+      var linkInfo = getLink(null, null, window.location, window.location.href);
+      var pageKey = linkInfo.pageKey;
+      // We'll treat whichever page you're loading from as the "start" page.
+      // When you render your single page bundle, you'll pick the right one you
+      // want to act as the "first" page.
+      if (!options.pages || !(pageKey in options.pages)) {
+        pageState[pageKey] = {
+          ...Flatdoc.emptyPageData(pageKeyLowerCase),
+          explicitlySpecifiedPageConfig: pages ? pages[pageKey] || null : null
+        };
+        Flatdoc.setFetcher(pageKey, pageState[pageKey]);
       }
+      var pages = options.pages || {};
+      for (var pageKey in pages) {
+        var pageKeyLowerCase = pageKey.toLowerCase();
+        var page = pages[pageKey];
+        pageState[pageKeyLowerCase] = {
+          ...Flatdoc.emptyPageData(pageKeyLowerCase),
+          explicitlySpecifiedPageConfig: pages[pageKey]
+        };
+        Flatdoc.setFetcher(pageKeyLowerCase, pageState[pageKeyLowerCase]);
+      }
+      if (options.highlight) {
+        actualOptions.highlight = options.highlight;
+      }
+      var runner = Flatdoc.run(actualOptions);
     };
 
     /**
@@ -2011,7 +2336,8 @@ if (MODE === "bookmarkNodeMode") {
         urlExtensionlessBasename(BookmarkTemplate.prefetchedCurrentPageBasename).toLowerCase() ===
           keyLowerCase
       ) {
-        obj.fetcher = Flatdoc.docPageContent(
+        obj.fetcher = Flatdoc.prefetchedDocPageContent(
+          keyLowerCase,
           BookmarkTemplate.prefetchedCurrentPageMarkdownAndHeader
         );
       } else {
@@ -2026,7 +2352,7 @@ if (MODE === "bookmarkNodeMode") {
      * fetcher. This also allows reuse as a "style pre-fetch" property in the
      * yaml header.
      */
-    Flatdoc.docPageContent = function (url) {
+    Flatdoc.prefetchedDocPageContent = function (pageKey, url) {
       if (!Flatdoc.errorHandler) {
         var listenerID = window.addEventListener("message", function (e) {
           if (e.data.messageType === "docPageError") {
@@ -2039,10 +2365,7 @@ if (MODE === "bookmarkNodeMode") {
         var onDone = null;
         var onFail = null;
         var returns = {
-          fail: function (cb) {
-            onFail = cb;
-            return returns;
-          },
+          fail: function (cb) {onFail = cb; return returns;},
           done: function (cb) {
             onDone = cb;
             onDone(content);
@@ -2052,17 +2375,17 @@ if (MODE === "bookmarkNodeMode") {
         return returns;
       };
       function loadData(locations, response, callback) {
-        if (locations.length === 0) callback(null, response);
-        else
+        if (locations.length === 0) {
+          callback(null, response);
+        } else {
           fetchdocPage(locations.shift())
-            .fail(function (e) {
-              callback(e, null);
-            })
+            .fail(function (e) {callback(e, null); })
             .done(function (data) {
               if (response.length > 0) response += "\n\n";
               response += data;
               loadData(locations, response, callback);
             });
+        }
       }
 
       var url = url instanceof Array ? url : [url];
@@ -2241,22 +2564,7 @@ if (MODE === "bookmarkNodeMode") {
       };
     };
 
-    /**
-     * Parser module.
-     * Parses a given Markdown document and returns a JSON object with data
-     * on the Markdown document.
-     *
-     *     var data = Flatdoc.parser.parse('markdown source here');
-     *     console.log(data);
-     *
-     *     data == {
-     *       title: 'My Project',
-     *       content: '<p>This project is a...',
-     *       menu: {...}
-     *     }
-     */
-
-    var Parser = (Flatdoc.parser = {});
+    var Parser = {};
 
     /**
      * Parses a given Markdown document.
@@ -2289,13 +2597,22 @@ if (MODE === "bookmarkNodeMode") {
           return code;
         },
       });
-
       marked.Renderer.prototype.paragraph = (text) => {
         if (text.startsWith("<codetabscontainer")) {
           return text + "\n";
         }
         return "<p>" + text + "</p>";
       };
+
+      /**
+       * This actually doesn't work because it escapes an extra time for some reason.
+       * I think the problem is in highligh.js
+      marked.Renderer.prototype.codespan = (text) => {
+        return marked.Renderer.prototype.code(text, 'reason', false);
+        return '<bookmark-inline-codeblock>' + highlight(text, 'reason') + '</bookmark-inline-codeblock>';
+        return text;
+      };
+      */
     };
 
     var Transformer = (Flatdoc.transformer = {});
@@ -2312,7 +2629,7 @@ if (MODE === "bookmarkNodeMode") {
       forEachHierarchy(function (treeNode, inclusiveContext) {
         if (treeNode.slug) {
           var levelContent = treeNode.levelContent;
-          levelContent.id = linkifidIdForHashAndPage(treeNode.slug, pageKey);
+          levelContent.id = fullyQualifiedHeaderId(treeNode.slug, pageKey);
         }
       }, hierarchicalDoc);
     };
@@ -2330,7 +2647,7 @@ if (MODE === "bookmarkNodeMode") {
      */
 
     Transformer.getMenu = function (runner, $content) {
-      var root = { items: [], id: "", level: 0 };
+      var root = { items: [], linkifiedId: "", level: 0 };
       var cache = [root];
 
       function mkdir_p(level) {
@@ -2346,25 +2663,26 @@ if (MODE === "bookmarkNodeMode") {
       }
 
       var query = [];
-      if (runner.sidenavify.h0) {
+      var sidenavify = runner.pageTemplateOptions.sidenavify;
+      if (sidenavify.h0) {
         query.push("h0");
       }
-      if (runner.sidenavify.h1) {
+      if (sidenavify.h1) {
         query.push("h1");
       }
-      if (runner.sidenavify.h2) {
+      if (sidenavify.h2) {
         query.push("h2");
       }
-      if (runner.sidenavify.h3) {
+      if (sidenavify.h3) {
         query.push("h3");
       }
-      if (runner.sidenavify.h4) {
+      if (sidenavify.h4) {
         query.push("h4");
       }
-      if (runner.sidenavify.h5) {
+      if (sidenavify.h5) {
         query.push("h5");
       }
-      if (runner.sidenavify.h6) {
+      if (sidenavify.h6) {
         query.push("h6");
       }
       $content.find(query.join(",")).each(function () {
@@ -2380,7 +2698,7 @@ if (MODE === "bookmarkNodeMode") {
         ) {
           text = "<code>" + escapeHtml(text) + "</code>";
         }
-        var obj = { sectionHtml: text, items: [], level: level, id: $el.attr("id") };
+        var obj = { sectionHtml: text, items: [], level: level, linkifiedId: $el.attr("id") };
         parent.items.push(obj);
         cache[level] = obj;
       });
@@ -2479,13 +2797,12 @@ if (MODE === "bookmarkNodeMode") {
      * Menu view. Renders menus
      */
 
-    var MenuView = (Flatdoc.menuView = function (menu) {
+    var MenuView = (Flatdoc.menuView = function (menu, pageKey) {
       var $el = $("<ul>");
 
       function process(node, $parent) {
-        var id = node.id || "root";
-        var nodeHashToChangeTo = node.id ? hashForLinkifiedPageifiedId(id) : '';
-
+        var id = node.linkifiedId || "root";
+        var nodeHashToChangeTo = node.linkifiedId ? hashForFullFullyQualifiedHeaderId(id) : '';
         var $li = $("<li>")
           .attr("id", id + "-item")
           .addClass("level-" + node.level)
@@ -2495,13 +2812,9 @@ if (MODE === "bookmarkNodeMode") {
           var $a = $("<a>")
             .html(node.sectionHtml)
             .attr("id", id + "-link")
-            .attr("href", "#" + nodeHashToChangeTo)
+            .attr("href", './' + pageKey + ".html#" + nodeHashToChangeTo)
             .addClass("level-" + node.level)
             .appendTo($li);
-          // $a.on('click', function() {
-          //   var foundNode = $('#' + node.id);
-          //   foundNode && $.highlightNode(foundNode);
-          // });
         }
 
         if (node.items.length > 0) {
@@ -2580,9 +2893,8 @@ if (MODE === "bookmarkNodeMode") {
       FILTER: "FILTER",
     };
 
-    function SearchComponentBase(root, pageKeys) {
+    function SearchComponentBase(root) {
       this.root = root;
-      this.pageKeys = pageKeys;
       this.queryState = QueryStates.ALL;
       this.resultsByPageKey = {};
       /**
@@ -2602,7 +2914,7 @@ if (MODE === "bookmarkNodeMode") {
     }
 
     function TextDocSearch(props) {
-      SearchComponentBase.call(this, props.root, props.pageKeys);
+      SearchComponentBase.call(this, props.root);
       this.queryState = QueryStates.FILTER;
       var placeholder = this.getPlaceholder();
       if (this.root.tagName.toUpperCase() !== "FORM") {
@@ -2744,7 +3056,7 @@ if (MODE === "bookmarkNodeMode") {
      * An "input selector" style component that uses the navigation autocomplete window.
      */
     function TextDocSelector(props) {
-      SearchComponentBase.call(this, props.root, props.pageKeys);
+      SearchComponentBase.call(this, props.root);
       this.queryState = QueryStates.ALL;
 
       this.root.addEventListener("focus", function (e) {
@@ -2927,13 +3239,7 @@ if (MODE === "bookmarkNodeMode") {
       clickHandler
     ) {
       var runner = this;
-      // var isNowVisible = runner.updateSearchHitsVisibility(searchComponent);
-      // // If toggling to invisible, do not change the rendered list. The reason is
-      // // that we want existing contents to always fade out instead of changing the list contents
-      // // while fading out.
-      // if(!isNowVisible) {
-      //   return;
-      // }
+      var emptyFunction = function() {};
       var hitsScrollContainer = this.getHitsScrollContainer();
       var firstItem = null;
       var lastItem = null;
@@ -3061,7 +3367,7 @@ if (MODE === "bookmarkNodeMode") {
                 searchable.originalInclusiveContext,
                 pageKey
               );
-              hitsItem.ontouchstart = function() {}
+              hitsItem.ontouchstart = emptyFunction;
               allMarkupForAllButtonContents +=
                 '<div class="bookmark-hits-item-button-contents">' +
                 topRowMarkup +
@@ -3148,7 +3454,7 @@ if (MODE === "bookmarkNodeMode") {
       return row + "</div></div>";
     };
     Runner.prototype.setupHitsScrollContainer = function () {
-      var theSearchHitsId = this.searchHitsId;
+      var theSearchHitsId = this.pageTemplateOptions.searchHitsId;
       var theSearchHits = document.getElementById(theSearchHitsId);
       var hitsScrollContainer = theSearchHits.childNodes[0];
       var hitsScrollContainerAppearsSetup =
@@ -3242,14 +3548,11 @@ if (MODE === "bookmarkNodeMode") {
     };
     Runner.prototype.setupSearchInput = function () {
       var runner = this;
-      var theSearchFormId = runner.searchFormId;
+      var theSearchFormId = runner.pageTemplateOptions.searchFormId;
       if (theSearchFormId) {
         var theSearchForm = document.getElementById(theSearchFormId);
         runner.searchState.CONTENT = new TextDocSearch({
           root: theSearchForm,
-          pageKeys: mapKeys(runner.pageState, function () {
-            return true;
-          }),
           /**
            * When input is blurred we do not set the active component to null.
            */
@@ -3320,9 +3623,17 @@ if (MODE === "bookmarkNodeMode") {
       var searchComponent = runner.searchState.activeSearchComponent;
       lazyHierarchicalIndexForSearch(runner.pageState);
       var hits = [];
-      var subsetOfPages = keepOnlyKeys(runner.pageState, function (pageData, pageKey) {
-        return searchComponent.pageKeys[pageKey];
-      });
+      // move the current page to the front of the set.
+      var linkInfo = getLink(null, null, window.location, window.location.href);
+      var pageStateWithCurrentPageAtFront = moveKeyToFront(runner.pageState, linkInfo.pageKey);
+      var subsetOfPages =
+        runner.searchState.activeSearchComponent === runner.searchState.CONTENT
+          ? keepOnlyKeys(pageStateWithCurrentPageAtFront, function(pageData, pageKey) {
+            return !Flatdoc.getPageConfigBool('hideInSearch', pageData, false);
+          })
+          : keepOnlyKeys(pageStateWithCurrentPageAtFront, function (pageData, pageKey) {
+            return runner.pageTemplateOptions.versionPageIs.toLowerCase() === pageKey;
+          });
       if (searchComponent.queryState === QueryStates.ALL) {
         return hierarchicalRenderFilteredSearchables(
           query,
@@ -3373,21 +3684,17 @@ if (MODE === "bookmarkNodeMode") {
 
     Runner.prototype.setupVersionButton = function () {
       var runner = this;
-      if (this.versionButtonId && this.versionPageIs) {
-        var versionMenuButton = document.getElementById(this.versionButtonId);
+      if (this.pageTemplateOptions.versionButtonId && this.pageTemplateOptions.versionPageIs) {
+        var versionMenuButton = document.getElementById(this.pageTemplateOptions.versionButtonId);
         if (!versionMenuButton) {
           console.error(
             "Version menu selector/content with id ",
-            this.versionButtonId,
+            this.pageTemplateOptions.versionButtonId,
             " doesnt exist"
           );
         }
         this.searchState.VERSIONS = new TextDocSelector({
           root: versionMenuButton,
-          pageKeys: mapKeys(
-            runner.pageState,
-            (pageData, pageKey) => this.versionPageIs.toLowerCase() === pageKey
-          ),
           onKeydown: function (e) {
             return this.handleSearchComponentKeydown(runner.searchState.VERSIONS, e);
           }.bind(this),
@@ -3525,11 +3832,18 @@ if (MODE === "bookmarkNodeMode") {
         : null;
     };
 
+    /**
+     * Local developer mode renders in browser, not prerendered.
+     */
+    Runner.prototype.isDeveloperMode = function () {
+      var runner = this;
+      var isDeveloperMode = !runner.discoveredToBePrerenderedAtUrl;
+    };
     Runner.prototype.isSingleDocsMode = function () {
       var runner = this;
-      var runPrerenderedInSingleDocsMode = runner.runPrerenderedInSingleDocsMode;
-      var discoveredDocsToBePrerendered = runner.discoveredDocsToBePrerendered;
-      return runPrerenderedInSingleDocsMode && discoveredDocsToBePrerendered;
+      var runPrerenderedInSingleDocsMode = runner.pageTemplateOptions.runPrerenderedInSingleDocsMode;
+      var discoveredToBePrerenderedAtUrl = runner.discoveredToBePrerenderedAtUrl;
+      return runner.isDeveloperMode() ? runner.pageTemplateOptions.runDevelopmentInSingleDocsMode : runPrerenderedInSingleDocsMode;
     };
     /**
      * Accepts a page key as supplied.
@@ -3537,9 +3851,9 @@ if (MODE === "bookmarkNodeMode") {
     Runner.prototype.constructEscapedBaseUrlFromRoot = function (nonNormalizedPageKey, slugAndQueryParams) {
       var runner = this;
       var escapedNonNormalizedPageKey = nonNormalizedPageKey == null ? null : escapeHtml(nonNormalizedPageKey);
-      var escapedSlugAndQueryParams = slugAndQueryParams == null ? null : escapeHtml(slugAndQueryParams);
-      var effectivePageAndHashFromLocation = getEffectivePageAndHashFromLocation(window.location);
-      var loadingFromPageKey = effectivePageAndHashFromLocation.loadingFromPageKey;
+      var escapedSlugAndQueryParams = (slugAndQueryParams == null || slugAndQueryParams == '') ? null : escapeHtml(slugAndQueryParams);
+      var linkInfo = getLink(runner.discoveredToBePrerenderedPageKey, runner.discoveredToBePrerenderedAtUrl, window.location, window.location.href);
+      var asAnEmbeddedSubpageOfEntrypointPageKey = linkInfo.asAnEmbeddedSubpageOfEntrypointPageKey;
       var isSingleDocMode = runner.isSingleDocsMode();
       if (isSingleDocMode) {
         // For single page mode, you must have the following for referring to
@@ -3550,7 +3864,7 @@ if (MODE === "bookmarkNodeMode") {
         return "#" + escapedNonNormalizedPageKey + escapedHashSlugAndQueryParams;
       } else {
         var escapedHashSlugAndQueryParams = (escapedSlugAndQueryParams == null ? '' : "#" + escapedSlugAndQueryParams);
-        if (loadingFromPageKey.toLowerCase() === escapedNonNormalizedPageKey.toLowerCase()) {
+        if (asAnEmbeddedSubpageOfEntrypointPageKey.toLowerCase() === escapedNonNormalizedPageKey.toLowerCase()) {
           return escapedSlugAndQueryParams == null ?
             (escapedNonNormalizedPageKey + ".html") :
             escapedHashSlugAndQueryParams;
@@ -3624,7 +3938,6 @@ if (MODE === "bookmarkNodeMode") {
         var controlClose =
           (evt.keyCode === 219 && evt.ctrlKey) || (evt.keyCode === 67 && evt.ctrlKey);
         if (evt.keyCode === 27) {
-          console.log("global escape");
           // Let's make escape close and blur
           if (theTextDocSearch.isFocused()) {
             theTextDocSearch.blur();
@@ -3768,12 +4081,13 @@ if (MODE === "bookmarkNodeMode") {
       var majorHeaders = $("h2, h3");
       majorHeaders.length &&
         majorHeaders.scrollagent(function (cid, pid, currentElement, previousElement) {
-          // console.log('setting up scroll watchers for pid', pid);
           if (pid) {
-            $("[href='#" + hashForLinkifiedPageifiedId(pid) + "']").removeClass("active");
+            var anchorForHeader = document.getElementById(pid + '-link');
+            $(anchorForHeader).removeClass('active');
           }
           if (cid) {
-            $("[href='#" + hashForLinkifiedPageifiedId(cid) + "']").addClass("active");
+            var anchorForHeader = document.getElementById(cid + '-link');
+            $(anchorForHeader).addClass('active');
           }
         });
     };
@@ -3833,21 +4147,39 @@ if (MODE === "bookmarkNodeMode") {
     Runner.prototype.handleWindowHashChange = function () {
       var runner = this;
       runner.activatePageForCurrentUrl();
-      var effectivePageAndHashFromLocation = getEffectivePageAndHashFromLocation(window.location);
-      var hashContents = effectivePageAndHashFromLocation.hashContents;
-      var queryParams = effectivePageAndHashFromLocation.queryParams;
+      
+      var linkInfo = getLink(
+        runner.discoveredToBePrerenderedPageKey,
+        runner.discoveredToBePrerenderedAtUrl,
+        window.location,
+        window.location.href
+      );
+      var pageData = runner.pageState[linkInfo.pageKey];
+      if(!pageData) {
+        console.error('Page does not exist in pages: config (usually in your siteTemplate)');
+        var linkInfo = getLink(
+          runner.discoveredToBePrerenderedPageKey,
+          runner.discoveredToBePrerenderedAtUrl,
+          window.location,
+          window.location.href
+        );
+        return;
+      }
+      
+      var hashContents = linkInfo.hashContents;
+      var queryParams = linkInfo.queryParams;
 
       var goToHeaderAsFallbackIfNotFound = function () {
-        hashContents = hashContents.substring(1);
         scrollIntoViewAndHighlightNodeById(
-          linkifidIdForHashAndPage(
-            effectivePageAndHashFromLocation.hashContents,
-            effectivePageAndHashFromLocation.pageKey
-          )
+          fullyQualifiedHeaderId(linkInfo.hashContents, linkInfo.pageKey)
         );
       };
+      if(!linkInfo) {
+        console.error('You are trying to load a page that is not registered in the site template');
+        return;
+      }
       if (queryParams && queryParams.txt != null) {
-        var pageKey = effectivePageAndHashFromLocation.pageKey;
+        var pageKey = linkInfo.pageKey;
         lazyHierarchicalIndexForSearch(runner.pageState);
         // TODO: redirect to moved text blocks.
         var found = runner.findBestTextMatchInHierarchicalIndex(
@@ -3855,7 +4187,6 @@ if (MODE === "bookmarkNodeMode") {
           queryParams.txt,
           runner.pageState[pageKey].hierarchicalIndex
         );
-        var foundText = getDomThingInnerText(found);
         // Can't get client bounding rect of text nodes, so don't try to scroll
         // to them and markdown parsers won't generate floating text anyways.
         if (
@@ -3872,20 +4203,13 @@ if (MODE === "bookmarkNodeMode") {
       }
     };
     Runner.prototype.waitForImages = function () {
+      var runner = this;
       var onAllImagesLoaded = function () {
         // Has to be done after images are loaded for correct detection of position.
-        this.setupLeftNavScrollHighlighting();
-        window.addEventListener(
-          "hashchange",
-          function (e) {
-            console.log(getEffectivePageAndHashFromLocation(window.location));
-            this.handleWindowHashChange();
-          }.bind(this)
-        );
-        console.log(getEffectivePageAndHashFromLocation(window.location));
+        runner.setupLeftNavScrollHighlighting();
+        window.addEventListener("hashchange", runner.handleWindowHashChange.bind(runner));
         // Rejump after images have loaded
-        this.handleWindowHashChange();
-
+        runner.handleWindowHashChange();
         /**
          * If you add a style="display:none" to your document body, we will clear
          * the style after the styles have been injected. This avoids a flash of
@@ -3899,15 +4223,8 @@ if (MODE === "bookmarkNodeMode") {
          * entirely in css. As soon as styles are loaded, the visibility can be shown.
          */
         console.log("all images loaded at", Date.now());
-        if (window.location.hash) {
-          document.body.style = "visibility: revert";
-        } else {
-          console.log(
-            "Lack of hash in URL saved time in display:",
-            Date.now() - window._bookmarkTimingStyleReady
-          );
-        }
-      }.bind(this);
+        document.body.style = "visibility: revert";
+      };
 
       var imageCount = $("img").length;
       var nImagesLoaded = 0;
@@ -3982,6 +4299,7 @@ if (MODE === "bookmarkNodeMode") {
     };
     Runner.prototype.substituteInDomSiteTemplateAfterSiteTemplateLoadedSingle = function() {
       var runner = this;
+      console.log(Object.keys(runner.pageState));
       var templateContainers = $("div.bookmarkTemplate");
       for (var i = 0; i < templateContainers.length; i++) {
         var templateContainer = templateContainers[i];
@@ -3989,10 +4307,10 @@ if (MODE === "bookmarkNodeMode") {
         var isAlreadyExpanded = templateContainer.className === 'expanded bookmarkTemplate';
         var replacer = function(template) {
           return template.replaceAll(
-            /\$\{Bookmark\.Template\.Pages\.([a-zA-Z\/]+)\.number\}/g,
+            /\$\{Bookmark\.Template\.Pages\.([a-zA-Z\-\/]+)\.number\}/g,
             function(s, key) {
               var pageKey = key.toLowerCase();
-              return runner.pageState[pageKey] ? ("" + +runner.pageState[pageKey].originalKeyIndex) : 'ERROR';
+              return runner.pageState[pageKey] ? ("" + +(indexOfKey(runner.pageState, pageKey))) : 'ERROR';
             }
           ).replaceAll(
             /\$\{Bookmark\.Template\.DomResourcesById\.([a-zA-Z\/]+)\.([a-zA-Z\/]+)\}/g,
@@ -4025,15 +4343,17 @@ if (MODE === "bookmarkNodeMode") {
     Runner.prototype.substituteInDomSiteTemplateAfterSiteTemplateLoadedForEach = function() {
       var runner = this;
       var templateContainers = $("div.bookmarkTemplateForEachPage");
-      var replacer = function(onePageState, commentText) {
-        var originalConfigKey = onePageState.originalConfigKey;
-        var originalKeyIndex = onePageState.originalKeyIndex;
-        var linkText = onePageState.originalPageConfig.linkText || originalConfigKey;
+      
+      var replacer = function(pageKey, onePageState, commentText) {
+        var originalKeyIndex = indexOfKey(runner.pageState, pageKey);
+        var linkText = Flatdoc.getPageConfig('linkText', onePageState, kebabToWords(pageKey));
+        var hideInNav = Flatdoc.getPageConfig('hideInNav', onePageState, false).toString();
         return commentText
           .replaceAll(/\$\{Bookmark\.Template\.ForEachPage\.number\}/g, "" + +originalKeyIndex)
-          .replaceAll(/\$\{Bookmark\.Template\.ForEachPage\.url\}/g, runner.constructEscapedBaseUrlFromRoot(originalConfigKey))
-          .replaceAll(/\$\{Bookmark\.Template\.ForEachPage\.key\}/g, escapeHtml(originalConfigKey))
-          .replaceAll(/\$\{Bookmark\.Template\.ForEachPage\.linkText\}/g, escapeHtml(linkText));
+          .replaceAll(/\$\{Bookmark\.Template\.ForEachPage\.url\}/g, runner.constructEscapedBaseUrlFromRoot(pageKey))
+          .replaceAll(/\$\{Bookmark\.Template\.ForEachPage\.key\}/g, escapeHtml(pageKey))
+          .replaceAll(/\$\{Bookmark\.Template\.ForEachPage\.linkText\}/g, escapeHtml(linkText))
+          .replaceAll(/\$\{Bookmark\.Template\.ForEachPage\.hideInNav\}/g, escapeHtml(hideInNav));
       };
       for (var i = 0; i < templateContainers.length; i++) {
         var templateContainer = templateContainers[i];
@@ -4045,7 +4365,7 @@ if (MODE === "bookmarkNodeMode") {
             runner.substituteAndInjectTemplatesBefore(
               templateContainer,
               templateStrings,
-              replacer.bind(null, onePageState)
+              replacer.bind(null, pageKey, onePageState)
             );
           }
         };
@@ -4068,18 +4388,6 @@ if (MODE === "bookmarkNodeMode") {
     Runner.prototype.substituteInDomSiteTemplateAfterSiteTemplateLoaded = function () {
       this.substituteInDomSiteTemplateAfterSiteTemplateLoadedForEach();
       this.substituteInDomSiteTemplateAfterSiteTemplateLoadedSingle();
-    };
-    /*
-     * If the hash is empty, we don't need to scroll to anything, and therefore
-     * we don't need to wait until images load to reveal the body (for size
-     * issues).
-     */
-    Runner.prototype.styleInjectedAndReady = function () {
-      window._bookmarkTimingStyleReady = Date.now();
-      if (!window.location.hash) {
-        console.log("displaying because no hash");
-        document.body.style = "visibility: revert";
-      }
     };
 
     /**
@@ -4130,6 +4438,31 @@ if (MODE === "bookmarkNodeMode") {
       document.addEventListener('touchstart', addTouchClass, false);
       document.addEventListener('mouseover', removeTouchClass, false);
     };
+    Runner.prototype.handleReady = function() {
+      var runner = this;
+      this.removeFromRenderedPage();
+      this.fixupAlignmentClasses();
+      this.waitForImages();
+      runner.makeCodeTabsInteractive();
+      // Need to focus the window so global keyboard shortcuts are heard.
+      $(window).focus();
+      if (typeof mediumZoom !== 'undefined') {
+        mediumZoom(document.querySelectorAll('.bookmark-content img'), {
+          scrollOffset: 20,
+          container: document.body,
+          margin: 24,
+          background: '#ffffff',
+        });
+        document.querySelectorAll('.bookmark-content img').forEach(function(img) {
+          var parent = img.parentElement;
+          if (parent && parent.tagName.toUpperCase() === 'P') {
+            // Allows targeting css for containers of images
+            // since has() selector is not yet supported in css
+            parent.className += ' imageContainer';
+          } 
+        });
+      }
+    };
     /**
      * Loads the Markdown document (via the fetcher), parses it, and applies it
      * to the elements.
@@ -4144,27 +4477,19 @@ if (MODE === "bookmarkNodeMode") {
       var runner = this;
       runner.setupPage();
       runner.setupSearch();
-      $(runner.pageRootSelector).on("flatdoc:ready", this.removeFromRenderedPage.bind(this));
-      $(runner.pageRootSelector).on("flatdoc:ready", this.fixupAlignmentClasses.bind(this));
-      $(runner.pageRootSelector).on("flatdoc:ready", this.waitForImages.bind(this));
-      // If this *is* an already rendered snapshot, then no need to render
-      // anything. Just fire off the ready events so that hacky jquery code can
-      // perform resizing etc.
-      $(runner.pageRootSelector).on("flatdoc:ready", function (e) {
-        runner.makeCodeTabsInteractive();
-        // Need to focus the window so global keyboard shortcuts are heard.
-        $(window).focus();
-      });
-      if (document.body.className.indexOf("bookmark-already-rendered") !== -1) {
-        runner.discoveredDocsToBePrerendered = true;
-        runner.substituteInDomSiteTemplateAfterSiteTemplateLoaded();
-        runner.styleInjectedAndReady();
-        $(runner.pageRootSelector).trigger("flatdoc:ready");
+      if (document.body.dataset.bookmarkAlreadyRenderedAtHref) {
+        runner.discoveredToBePrerenderedAtUrl = new URL(document.body.dataset.bookmarkAlreadyRenderedAtHref);
+        runner.discoveredToBePrerenderedPageKey = document.body.dataset.bookmarkAlreadyRenderedPageKey;
+        runner.handleReady();
         runner.handleDocsFetchedCachedInDom();
         return;
       }
-      runner.substituteInDomSiteTemplateAfterSiteTemplateLoaded();
-      document.body.className += " bookmark-already-rendered";
+      // Have to store the file protocol/domain/path because when using Save As
+      // links aren't relativized and on loading the saved page we have to
+      // rewrite them relative to the saved page.
+      var currentLinkInfo = getLink(null, null, window.location, window.location.href);
+      document.body.dataset.bookmarkAlreadyRenderedAtHref = window.location.href;
+      document.body.dataset.bookmarkAlreadyRenderedPageKey = currentLinkInfo.pageKey;
       var stylusFetchedYet = !runner.stylusFetcher;
       var allDocsFetchedYet = false;
       var everythingFetchedYet = false;
@@ -4184,7 +4509,7 @@ if (MODE === "bookmarkNodeMode") {
         }
         everythingFetchedYet = allDocsFetchedYet && stylusFetchedYet;
         if (everythingFetchedYet && !wasEverythingFetchedYetBefore) {
-          $(runner.pageRootSelector).trigger("flatdoc:ready");
+          runner.handleReady();
         }
       }
 
@@ -4203,14 +4528,31 @@ if (MODE === "bookmarkNodeMode") {
           cb(err, data);
         });
       };
-      forEachKey(runner.pageState, function (pageData, pageKey) {
-        fetchOne(pageData.fetcher, function (err, data) {
-          runner.pageState[pageKey].markdownAndHeader = data;
-          err &&
-            console.error("[Flatdoc] fetching Markdown data failed for page:" + pageKey + ".", err);
-          handleDones();
-        });
-      });
+      var alreadySpecifiedPageKeys = Object.keys(runner.pageState);
+      var handleFetchDone = function (pageKey, err, data) {
+        console.log('handling fetch done', pageKey);
+        runner.pageState[pageKey].markdownAndHeader = data;
+        if(err) {
+          console.error("[Flatdoc] fetching Markdown data failed for page:" + pageKey + ".", err);
+        } else {
+          // If we encounter a next page that hasn't been fetched yet, fetch it.
+          var exploreKey = 
+            (data.headerProps.nextPage && !runner.pageState[data.headerProps.nextPage]) ? data.headerProps.nextPage :
+            (data.headerProps.rootPage && !runner.pageState[data.headerProps.rootPage]) ? data.headerProps.rootPage : null;
+          if(data.headerProps.nextPage === pageKey) {
+            console.error('Page ' + newPageKey + ' has set itself as the "nextPage". Fix this.');
+          }
+          if(exploreKey) {
+            var newPageKey = exploreKey.toLowerCase();
+            var newPageState = Flatdoc.emptyPageData(newPageKey);
+            runner.pageState[newPageKey] = newPageState;
+            runner.pageState = ensureKeyValOrderCircular(runner.pageState, pageKey, newPageKey);
+            Flatdoc.setFetcher(newPageKey, runner.pageState[newPageKey]);
+            fetchOne(runner.pageState[newPageKey].fetcher, handleFetchDone.bind(null, newPageKey));
+          }
+        }
+        handleDones();
+      };
       if (runner.stylusFetcher) {
         var templateFetchStart = Date.now();
         runner.stylusFetcher(function (err, stylusTxt) {
@@ -4221,6 +4563,9 @@ if (MODE === "bookmarkNodeMode") {
           });
         });
       }
+      forEachKey(runner.pageState, function (pageData, pageKey) {
+        fetchOne(pageData.fetcher, handleFetchDone.bind(null, pageKey));
+      });
     };
 
     Runner.prototype.renderAndInjectStylus = function (err, stylusTxt, cb) {
@@ -4243,7 +4588,6 @@ if (MODE === "bookmarkNodeMode") {
             style.onload = function (e) {
               var end = Date.now();
               console.log("css load event delayed showing page by", end - start);
-              runner.styleInjectedAndReady();
             };
             cb(stylusTxt);
           }
@@ -4253,6 +4597,8 @@ if (MODE === "bookmarkNodeMode") {
 
     Runner.prototype.handleDocsFetchedCachedInDom = function () {
       var runner = this;
+      var isSingleDocMode = runner.isSingleDocsMode();
+      
       function findAndSlugifyExperience(pageKey, pageData) {
         var contentContainerForPage = $(".bookmark-content.page-" + pageKey)[0];
         var titleH0 = $(contentContainerForPage).find("h0").eq(0);
@@ -4260,7 +4606,12 @@ if (MODE === "bookmarkNodeMode") {
         var title = titleH0.length ? titleH0.text() : titleH1.length ? titleH1.text() : null;
         var subtitle = $(contentContainerForPage).find(".bookmark-content-subtitle").eq(0);
         var hierarchicalDoc = hierarchize($(contentContainerForPage)[0]);
-        annotateSlugsOnTreeNodes(hierarchicalDoc, runner.slugContributions);
+        annotateSlugsOnTreeNodes(hierarchicalDoc, runner.pageTemplateOptions.slugContributions);
+        // TODO: Can do this on setTimeout.
+        var menuContainerNode = $(".bookmark-menubar.page-" + pageKey)[0];
+        var contentContainerNode = $(".bookmark-content.page-" + pageKey)[0];
+        fixAllAnchorLinksUnderRoot(runner, menuContainerNode);
+        fixAllAnchorLinksUnderRoot(runner, contentContainerNode);
         return {
           ...pageData,
           markdownAndHeader: {
@@ -4268,14 +4619,15 @@ if (MODE === "bookmarkNodeMode") {
             markdown: null,
             headerProps: { title: title, subtitle: subtitle },
           },
-          contentContainerNode: $(".bookmark-content.page-" + pageKey)[0],
-          menuContainerNode: $(".bookmark-menubar.page-" + pageKey)[0],
+          contentContainerNode: contentContainerNode,
+          menuContainerNode: menuContainerNode,
           hierarchicalDoc: hierarchicalDoc,
         };
       }
       runner.pageState = mapKeys(runner.pageState, function (data, pageKey) {
         return findAndSlugifyExperience(pageKey, data);
       });
+      runner.substituteInDomSiteTemplateAfterSiteTemplateLoaded();
     };
     Runner.prototype.handleDocsFetched = function () {
       var runner = this;
@@ -4324,17 +4676,20 @@ if (MODE === "bookmarkNodeMode") {
           containerForPageContent.appendChild(itm)
         );
         Transformer.buttonize(containerForPageContent);
+        
         Transformer.smartquotes(containerForPageContent);
 
         var hierarchicalDoc = hierarchize(containerForPageContent);
-        annotateSlugsOnTreeNodes(hierarchicalDoc, runner.slugContributions);
+        annotateSlugsOnTreeNodes(hierarchicalDoc, runner.pageTemplateOptions.slugContributions);
         // Has to be done after annotating slugs.
         Transformer.addIDsToHierarchicalDoc(runner, hierarchicalDoc, pageKey);
         var menu = Transformer.getMenu(runner, $(containerForPageContent));
-        Array.prototype.forEach.call(MenuView(menu), (itm) =>
+        Array.prototype.forEach.call(MenuView(menu, pageKey), (itm) =>
           containerForPageMenu.appendChild(itm)
         );
 
+        fixAllAnchorLinksUnderRoot(runner, containerForPageContent);
+        fixAllAnchorLinksUnderRoot(runner, menuBarForPage);
         return {
           ...pageData,
           contentContainerNode: containerForPageContent,
@@ -4345,8 +4700,9 @@ if (MODE === "bookmarkNodeMode") {
       runner.pageState = mapKeys(runner.pageState, function (data, pageKey) {
         return appendExperience(pageKey, data);
       });
+
+      runner.substituteInDomSiteTemplateAfterSiteTemplateLoaded();
       runner.appendDocNodesToDom(runner.pageState);
-      runner.activatePageForCurrentUrl();
     };
 
     Runner.prototype.appendDocNodesToDom = function (data) {
@@ -4360,15 +4716,27 @@ if (MODE === "bookmarkNodeMode") {
 
     Runner.prototype.activatePageForCurrentUrl = function () {
       var runner = this;
-      var pageDataForUrl = getPageDataForUrl(window.location, runner.pageState);
-      var effectivePageKeyAndHash = getEffectivePageAndHashFromLocation(
+      var linkInfo = getLink(null, null, window.location, window.location.href);
+      var linkInfo = getLink(
+        runner.discoveredToBePrerenderedPageKey,
+        runner.discoveredToBePrerenderedAtUrl,
         window.location,
-        runner.pageState
+        window.location.href
       );
-      var currentPageKeyClass = "current-page-key-" + effectivePageKeyAndHash.pageKey;
+      var pageData = runner.pageState[linkInfo.pageKey];
+      if(!pageData) {
+        var linkInfo = getLink(
+          runner.discoveredToBePrerenderedPageKey,
+          runner.discoveredToBePrerenderedAtUrl,
+          window.location,
+          window.location.href
+        );
+        console.error('Page does not exist in pages: config (usually in your siteTEmplate)');
+        return;
+      }
+      var currentPageKeyClass = "current-page-key-" + linkInfo.pageKey;
       var alreadyActivated = document.body.classList.contains(currentPageKeyClass);
       if(alreadyActivated) {
-        console.log('page already activated');
         return;
       }
       for (var i = 0; i < 30; i++) {
@@ -4376,21 +4744,23 @@ if (MODE === "bookmarkNodeMode") {
       }
       var toggleClasses = function (data, pageKey) {
         document.body.classList.remove("current-page-key-" + pageKey);
-        pageDataForUrl === data
+        pageData === data
           ? data.contentContainerNode.classList.add("current")
           : data.contentContainerNode.classList.remove("current");
-        pageDataForUrl === data
+        pageData === data
           ? data.menuContainerNode.classList.add("current")
           : data.menuContainerNode.classList.remove("current");
       };
-      if(pageDataForUrl !== null) {
-        var currentPageIndex = pageDataForUrl.originalKeyIndex;
+      if(pageData !== null) {
+        if(pageData.markdownAndHeader.headerProps && pageData.markdownAndHeader.headerProps.title) {
+          document.title = pageData.markdownAndHeader.headerProps.title;
+        }
+        var currentPageIndex = indexOfKey(runner.pageState, linkInfo.pageKey);
         if (currentPageIndex !== -1) {
           document.body.classList.add("current-page-number-" + currentPageIndex);
         }
         forEachKey(runner.pageState, toggleClasses, toggleClasses);
         document.body.classList.add(currentPageKeyClass);
-        console.log('setting scroll top');
         document.body.scrollTop = 0;
       }
     };
@@ -4455,7 +4825,6 @@ if (MODE === "bookmarkNodeMode") {
 (function($) {
 
   $.fn.scrollagent = function(options, callback) {
-    // Account for $.scrollspy(function)
     if (typeof callback === 'undefined') {
       callback = options;
       options = {};
@@ -4520,37 +4889,15 @@ if (MODE === "bookmarkNodeMode") {
       }
     });
 
+    console.log('triggering resize on window');
     $(window).trigger('resize');
+    console.log('triggering scroll on parent');
     $parent.trigger('scroll');
 
     return this;
   };
 
 })(jQuery);
-
-/*
- * Scrollspy.
- */
-
-$(document).on('flatdoc:ready', function() {
-  if (typeof mediumZoom !== 'undefined') {
-    mediumZoom(document.querySelectorAll('.bookmark-content img'), {
-      scrollOffset: 20,
-      container: document.body,
-      margin: 24,
-      background: '#ffffff',
-    });
-    document.querySelectorAll('.bookmark-content img').forEach(function(img) {
-      var parent = img.parentElement;
-      if (parent && parent.tagName.toUpperCase() === 'P') {
-        // Allows targeting css for containers of images
-        // since has() selector is not yet supported in css
-        parent.className += ' imageContainer';
-      } 
-    });
-  }
-});
-
 
 
 /* jshint ignore:start */
@@ -4577,6 +4924,16 @@ $(document).on('flatdoc:ready', function() {
  */
 
 (function(r){var LATIN_MAP={"À":"A","Á":"A","Â":"A","Ã":"A","Ä":"A","Å":"A","Æ":"AE","Ç":"C","È":"E","É":"E","Ê":"E","Ë":"E","Ì":"I","Í":"I","Î":"I","Ï":"I","Ð":"D","Ñ":"N","Ò":"O","Ó":"O","Ô":"O","Õ":"O","Ö":"O","Ő":"O","Ø":"O","Ù":"U","Ú":"U","Û":"U","Ü":"U","Ű":"U","Ý":"Y","Þ":"TH","ß":"ss","à":"a","á":"a","â":"a","ã":"a","ä":"a","å":"a","æ":"ae","ç":"c","è":"e","é":"e","ê":"e","ë":"e","ì":"i","í":"i","î":"i","ï":"i","ð":"d","ñ":"n","ò":"o","ó":"o","ô":"o","õ":"o","ö":"o","ő":"o","ø":"o","ù":"u","ú":"u","û":"u","ü":"u","ű":"u","ý":"y","þ":"th","ÿ":"y"};var LATIN_SYMBOLS_MAP={"©":"(c)"};var GREEK_MAP={"α":"a","β":"b","γ":"g","δ":"d","ε":"e","ζ":"z","η":"h","θ":"8","ι":"i","κ":"k","λ":"l","μ":"m","ν":"n","ξ":"3","ο":"o","π":"p","ρ":"r","σ":"s","τ":"t","υ":"y","φ":"f","χ":"x","ψ":"ps","ω":"w","ά":"a","έ":"e","ί":"i","ό":"o","ύ":"y","ή":"h","ώ":"w","ς":"s","ϊ":"i","ΰ":"y","ϋ":"y","ΐ":"i","Α":"A","Β":"B","Γ":"G","Δ":"D","Ε":"E","Ζ":"Z","Η":"H","Θ":"8","Ι":"I","Κ":"K","Λ":"L","Μ":"M","Ν":"N","Ξ":"3","Ο":"O","Π":"P","Ρ":"R","Σ":"S","Τ":"T","Υ":"Y","Φ":"F","Χ":"X","Ψ":"PS","Ω":"W","Ά":"A","Έ":"E","Ί":"I","Ό":"O","Ύ":"Y","Ή":"H","Ώ":"W","Ϊ":"I","Ϋ":"Y"};var TURKISH_MAP={"ş":"s","Ş":"S","ı":"i","İ":"I","ç":"c","Ç":"C","ü":"u","Ü":"U","ö":"o","Ö":"O","ğ":"g","Ğ":"G"};var RUSSIAN_MAP={"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"yo","ж":"zh","з":"z","и":"i","й":"j","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f","х":"h","ц":"c","ч":"ch","ш":"sh","щ":"sh","ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya","А":"A","Б":"B","В":"V","Г":"G","Д":"D","Е":"E","Ё":"Yo","Ж":"Zh","З":"Z","И":"I","Й":"J","К":"K","Л":"L","М":"M","Н":"N","О":"O","П":"P","Р":"R","С":"S","Т":"T","У":"U","Ф":"F","Х":"H","Ц":"C","Ч":"Ch","Ш":"Sh","Щ":"Sh","Ъ":"","Ы":"Y","Ь":"","Э":"E","Ю":"Yu","Я":"Ya"};var UKRAINIAN_MAP={"Є":"Ye","І":"I","Ї":"Yi","Ґ":"G","є":"ye","і":"i","ї":"yi","ґ":"g"};var CZECH_MAP={"č":"c","ď":"d","ě":"e","ň":"n","ř":"r","š":"s","ť":"t","ů":"u","ž":"z","Č":"C","Ď":"D","Ě":"E","Ň":"N","Ř":"R","Š":"S","Ť":"T","Ů":"U","Ž":"Z"};var POLISH_MAP={"ą":"a","ć":"c","ę":"e","ł":"l","ń":"n","ó":"o","ś":"s","ź":"z","ż":"z","Ą":"A","Ć":"C","Ę":"e","Ł":"L","Ń":"N","Ó":"o","Ś":"S","Ź":"Z","Ż":"Z"};var LATVIAN_MAP={"ā":"a","č":"c","ē":"e","ģ":"g","ī":"i","ķ":"k","ļ":"l","ņ":"n","š":"s","ū":"u","ž":"z","Ā":"A","Č":"C","Ē":"E","Ģ":"G","Ī":"i","Ķ":"k","Ļ":"L","Ņ":"N","Š":"S","Ū":"u","Ž":"Z"};var ALL_DOWNCODE_MAPS=new Array;ALL_DOWNCODE_MAPS[0]=LATIN_MAP;ALL_DOWNCODE_MAPS[1]=LATIN_SYMBOLS_MAP;ALL_DOWNCODE_MAPS[2]=GREEK_MAP;ALL_DOWNCODE_MAPS[3]=TURKISH_MAP;ALL_DOWNCODE_MAPS[4]=RUSSIAN_MAP;ALL_DOWNCODE_MAPS[5]=UKRAINIAN_MAP;ALL_DOWNCODE_MAPS[6]=CZECH_MAP;ALL_DOWNCODE_MAPS[7]=POLISH_MAP;ALL_DOWNCODE_MAPS[8]=LATVIAN_MAP;var Downcoder=new Object;Downcoder.Initialize=function(){if(Downcoder.map)return;Downcoder.map={};Downcoder.chars="";for(var i in ALL_DOWNCODE_MAPS){var lookup=ALL_DOWNCODE_MAPS[i];for(var c in lookup){Downcoder.map[c]=lookup[c];Downcoder.chars+=c}}Downcoder.regex=new RegExp("["+Downcoder.chars+"]|[^"+Downcoder.chars+"]+","g")};downcode=function(slug){Downcoder.Initialize();var downcoded="";var pieces=slug.match(Downcoder.regex);if(pieces){for(var i=0;i<pieces.length;i++){if(pieces[i].length==1){var mapped=Downcoder.map[pieces[i]];if(mapped!=null){downcoded+=mapped;continue}}downcoded+=pieces[i]}}else{downcoded=slug}return downcoded};Flatdoc.slugify=function(s,num_chars){s=downcode(s);s=s.replace(/[^-\w\s]/g,"");s=s.replace(/^\s+|\s+$/g,"");s=s.replace(/[-\s]+/g,"-");s=s.toLowerCase();return s.substring(0,num_chars)};})();
+
+/*!
+ * url-polyfill
+ * MIT
+ * lifaon74
+ * 
+ * https://github.com/lifaon74/url-polyfill/blob/master/url-polyfill.min.js
+ */
+(function(t){var e=function(){try{return!!Symbol.iterator}catch(e){return false}};var r=e();var n=function(t){var e={next:function(){var e=t.shift();return{done:e===void 0,value:e}}};if(r){e[Symbol.iterator]=function(){return e}}return e};var i=function(e){return encodeURIComponent(e).replace(/%20/g,"+")};var o=function(e){return decodeURIComponent(String(e).replace(/\+/g," "))};var a=function(){var a=function(e){Object.defineProperty(this,"_entries",{writable:true,value:{}});var t=typeof e;if(t==="undefined"){}else if(t==="string"){if(e!==""){this._fromString(e)}}else if(e instanceof a){var r=this;e.forEach(function(e,t){r.append(t,e)})}else if(e!==null&&t==="object"){if(Object.prototype.toString.call(e)==="[object Array]"){for(var n=0;n<e.length;n++){var i=e[n];if(Object.prototype.toString.call(i)==="[object Array]"||i.length!==2){this.append(i[0],i[1])}else{throw new TypeError("Expected [string, any] as entry at index "+n+" of URLSearchParams's input")}}}else{for(var o in e){if(e.hasOwnProperty(o)){this.append(o,e[o])}}}}else{throw new TypeError("Unsupported input's type for URLSearchParams")}};var e=a.prototype;e.append=function(e,t){if(e in this._entries){this._entries[e].push(String(t))}else{this._entries[e]=[String(t)]}};e.delete=function(e){delete this._entries[e]};e.get=function(e){return e in this._entries?this._entries[e][0]:null};e.getAll=function(e){return e in this._entries?this._entries[e].slice(0):[]};e.has=function(e){return e in this._entries};e.set=function(e,t){this._entries[e]=[String(t)]};e.forEach=function(e,t){var r;for(var n in this._entries){if(this._entries.hasOwnProperty(n)){r=this._entries[n];for(var i=0;i<r.length;i++){e.call(t,r[i],n,this)}}}};e.keys=function(){var r=[];this.forEach(function(e,t){r.push(t)});return n(r)};e.values=function(){var t=[];this.forEach(function(e){t.push(e)});return n(t)};e.entries=function(){var r=[];this.forEach(function(e,t){r.push([t,e])});return n(r)};if(r){e[Symbol.iterator]=e.entries}e.toString=function(){var r=[];this.forEach(function(e,t){r.push(i(t)+"="+i(e))});return r.join("&")};t.URLSearchParams=a};var s=function(){try{var e=t.URLSearchParams;return new e("?a=1").toString()==="a=1"&&typeof e.prototype.set==="function"&&typeof e.prototype.entries==="function"}catch(e){return false}};if(!s()){a()}var f=t.URLSearchParams.prototype;if(typeof f.sort!=="function"){f.sort=function(){var r=this;var n=[];this.forEach(function(e,t){n.push([t,e]);if(!r._entries){r.delete(t)}});n.sort(function(e,t){if(e[0]<t[0]){return-1}else if(e[0]>t[0]){return+1}else{return 0}});if(r._entries){r._entries={}}for(var e=0;e<n.length;e++){this.append(n[e][0],n[e][1])}}}if(typeof f._fromString!=="function"){Object.defineProperty(f,"_fromString",{enumerable:false,configurable:false,writable:false,value:function(e){if(this._entries){this._entries={}}else{var r=[];this.forEach(function(e,t){r.push(t)});for(var t=0;t<r.length;t++){this.delete(r[t])}}e=e.replace(/^\?/,"");var n=e.split("&");var i;for(var t=0;t<n.length;t++){i=n[t].split("=");this.append(o(i[0]),i.length>1?o(i[1]):"")}}})}})(typeof global!=="undefined"?global:typeof window!=="undefined"?window:typeof self!=="undefined"?self:this);(function(u){var e=function(){try{var e=new u.URL("b","http://a");e.pathname="c d";return e.href==="http://a/c%20d"&&e.searchParams}catch(e){return false}};var t=function(){var t=u.URL;var e=function(e,t){if(typeof e!=="string")e=String(e);if(t&&typeof t!=="string")t=String(t);var r=document,n;if(t&&(u.location===void 0||t!==u.location.href)){t=t.toLowerCase();r=document.implementation.createHTMLDocument("");n=r.createElement("base");n.href=t;r.head.appendChild(n);try{if(n.href.indexOf(t)!==0)throw new Error(n.href)}catch(e){throw new Error("URL unable to set base "+t+" due to "+e)}}var i=r.createElement("a");i.href=e;if(n){r.body.appendChild(i);i.href=i.href}var o=r.createElement("input");o.type="url";o.value=e;if(i.protocol===":"||!/:/.test(i.href)||!o.checkValidity()&&!t){throw new TypeError("Invalid URL")}Object.defineProperty(this,"_anchorElement",{value:i});var a=new u.URLSearchParams(this.search);var s=true;var f=true;var c=this;["append","delete","set"].forEach(function(e){var t=a[e];a[e]=function(){t.apply(a,arguments);if(s){f=false;c.search=a.toString();f=true}}});Object.defineProperty(this,"searchParams",{value:a,enumerable:true});var h=void 0;Object.defineProperty(this,"_updateSearchParams",{enumerable:false,configurable:false,writable:false,value:function(){if(this.search!==h){h=this.search;if(f){s=false;this.searchParams._fromString(this.search);s=true}}}})};var r=e.prototype;var n=function(t){Object.defineProperty(r,t,{get:function(){return this._anchorElement[t]},set:function(e){this._anchorElement[t]=e},enumerable:true})};["hash","host","hostname","port","protocol"].forEach(function(e){n(e)});Object.defineProperty(r,"search",{get:function(){return this._anchorElement["search"]},set:function(e){this._anchorElement["search"]=e;this._updateSearchParams()},enumerable:true});Object.defineProperties(r,{toString:{get:function(){var e=this;return function(){return e.href}}},href:{get:function(){return this._anchorElement.href.replace(/\?$/,"")},set:function(e){this._anchorElement.href=e;this._updateSearchParams()},enumerable:true},pathname:{get:function(){return this._anchorElement.pathname.replace(/(^\/?)/,"/")},set:function(e){this._anchorElement.pathname=e},enumerable:true},origin:{get:function(){var e={"http:":80,"https:":443,"ftp:":21}[this._anchorElement.protocol];var t=this._anchorElement.port!=e&&this._anchorElement.port!=="";return this._anchorElement.protocol+"//"+this._anchorElement.hostname+(t?":"+this._anchorElement.port:"")},enumerable:true},password:{get:function(){return""},set:function(e){},enumerable:true},username:{get:function(){return""},set:function(e){},enumerable:true}});e.createObjectURL=function(e){return t.createObjectURL.apply(t,arguments)};e.revokeObjectURL=function(e){return t.revokeObjectURL.apply(t,arguments)};u.URL=e};if(!e()){t()}if(u.location!==void 0&&!("origin"in u.location)){var r=function(){return u.location.protocol+"//"+u.location.hostname+(u.location.port?":"+u.location.port:"")};try{Object.defineProperty(u.location,"origin",{get:r,enumerable:true})}catch(e){setInterval(function(){u.location.origin=r()},100)}}})(typeof global!=="undefined"?global:typeof window!=="undefined"?window:typeof self!=="undefined"?self:this);
+
 
 /* jshint ignore:end */
 // This } is for the initial if() statement that bails out early.

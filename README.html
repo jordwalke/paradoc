@@ -1,157 +1,93 @@
 [ vim: set filetype=Markdown: ]: # (<style type="text/css">body {visibility: hidden} </style>)
 [ vim: set filetype=Markdown: ]: # (<meta charset="utf-8">)
-[ vim: set filetype=Markdown: ]: # (<script charset="utf-8" src="site/Bookmark.js"> </script>)
+[ vim: set filetype=Markdown: ]: # (<script src="site/Paradoc.js"> </script>)
 [//]: # (---)
-[//]: # (title: Bookmark Title)
-[//]: # (subtitle: Easy Markdown Pages)
-[//]: # (description: Bookmark - Easy Markdown Pages)
+[//]: # (title: Paradoc)
+[//]: # (subtitle: Instantly write, deploy, and enjoy docs)
+[//]: # (description: Paradoc - Easy Markdown Pages)
+[//]: # (nextPage: configuring-pages)
 [//]: # (siteTemplate: siteTemplate.html)
 [//]: # (---)
 
-# Bookmark
 
-An effortless way to make landing pages for Reason libraries.  ▾
+- **No servers, No build**
 
-Bookmark produces beautiful, fast-loading documentation pages for Reason projects
-and bundles all of your rendered doc markup into a single shareable file, along
-with all of its assets.
+- **Deployable Sites Right [From Chrome](#easy-optimizing-with-chrome)**
 
-> Bookmark is a fork of the excellent
-> [flatdoc](https://github.com/rstacruz/flatdoc)
-project but with a lighter weight editing workflow, and faster loading of
-published pages.
-> Though it is a relatively minor fork of Flatdoc, it is renamed in this
-> project to Bookmark in order to aggressively remove features from its API.
-
-- **No build. No server.** Just edit, Bookmark.
-- **Looks great** out of the box
-- **Compresses** page into a single, sharable `.html` file.
-
-
-### Looks <i data-feather="globe"></i>
-- Optional Left/right split layout (thanks to flatdoc).
-- Sticky navigation.
+- **Markdown [features](#markdown-features) for developers. [Offline Search](#search-features).**
 
 ### Workflow
 
-Bookmark markdown files have an `.html` file extension. This allows
-buildless/serverless editing/loading.
+- Write regular markdown in `.html` files with a single script tag at the top.
+- Everything after the script tag is regular markdown.
 
-1. Clone this project.
-2. `README.html` is the main markdown file. Edit it.
-3. Bookmark `site/index.dev.html`.
-
-> Note: This starter project is set up with a `site/` directory to make it easy
-> to drop all of Bookmark into your project just by copying the `site/`
-> directory into your project.  The file `site/index.dev.html`, loads a
-> markdown file named `README.html` located one directory up at your project
-> root. `README.html` has the `.html` suffix but it is really a markdown file.
-
-The `index.dev.html` file includes a script tag that runs `Bookmark` and
-specifies which files should be loaded:
-
-```html
-<script>
-Bookmark.go({ doc: "./README.md.html" });
-</script>
-```
-
-
-### Docs
-
-Docs use the `.html` or `.md.html` extension, and are standard markdown syntax,
-but with the additional requirement of a single script tag on the first line.
 
 ```markdown
-<script src="site/Bookmark.js"></script>
+<script src="site/Paradoc.js"></script>
 Everything _after_ the first line is
 plain **markdown**.
 ```
 
 <continueRight/>
 
-See how to [Add More Docs](#customizing-add-files)
+- Double click the `.html` file to turn your markdown into a beautiful webpage.
 
-> Note: Using `.md.html` provides better clarity, but for a project's main
-> `README`, the `.html` extension is better as Github will render it as your
-> main project's README in markup if you follow
-> [Integrations](#integration).
+- To make changes, just edit the contents of the file and reload the browser.
 
 
-### Styles And.Stuff
+### Try It Out
 
-Styles can be authored in plain `.css` and included in `index.dev.html` as a
-regular css file, but Bookmark also supports [Stylus](stylus) files also without
-any build step/server.  Stylus config goes into files with a `.html` file (or
-preferably a `.styl.html` file - for clarity), and use standard Stylus syntax,
-with the exception of requiring a single single script tag on the first line,
-just as with markdown files.
+This website was created from the Paradoc repo's main `README.html` markdown
+file. Clone this repo and double click `README.html` to turn it into this webpage.
 
-```css
-<script src="site/Bookmark.js"></script>
-.title-area
-  min-height: 100px
-  box-sizing: border-box
-  antialias()
-  text-align: center
-```
+1. `git clone git@github.com:jordwalke/paradoc.git`
+2. Double click `README.html`
 
-<continueRight/>
 
-The default Stylus file is
-[`theme-white/theme.styl.html`](theme-white/theme.styl.html). You may edit it
-and reload the page to see the changes.
 
-> Note: Check the console for errors parsing your Stylus syntax.
+> Note: The script include in _this_ `README.html` looks complicated because it
+> uses [Advanced Features](#integration-github-readme) that allows a single
+> `README.html` to act as a website, _and_ a Github README, always kept in
+> sync.  Your files will probably use the [very simple script
+> include](#workflow?txt=41316212813224330877011010h0) already discussed.
 
-Create more `.styl.html` files and add them to the list of files in the
-`stylusFetcher` loaded as explained in [Adding
-Files](#customizing-add-files) section.
 
-### Markdown Features
+### Looks
 
-Bookmark supports Github Flavored markdown features, but also inheirits some
-additional ones flatdoc. Bookmark also adds many of its own new features.  The
-"buttons", smartquotes and left/right split features below was inherited from
-flatdoc, and the other features are Bookmark specific features.
 
-#### Buttons
+#### Split View
 
-Include a `>` at the end of your link text (for instance: `Continue >`), to
-turn them into buttons. This is a feature from flatdoc.
+Paradoc comes with a UI theme that supports a left/right responsive split
+layout.  As you increase the window size, code samples and block quotes are
+split into a right hand column.
 
-> [Go To Github >][github]
+> Note: The style for this split view comes from Paradoc's use of
+> [flatdoc](https://ricostacruz.com/flatdoc/), but has been heavily modified.
+> The split view can be disabled in your
+> [`siteTemplate`](configuring-pages.html#the-site-template).
+
+Some of the additional [markdown extension features](#markdown-extensions)
+control the behavior of this split view.
+
+
+### Markdown Extensions
+
+Paradoc supports extended markdown features specified in [Github Flavored
+markdown](https://github.github.com/gfm/), and also supports some additional
+Paradoc specific features.
 
 
 #### Code highlighting
 
-You can use Markdown code fences to make syntax-highlighted text. Code blocks
-like this will end up in the right hand column when the window is sufficiently
-wide. Surround your text with three backticks just like with [GitHub Flavored
-Markdown][fences].
+With [GitHub Flavored Markdown][fences] you can use Markdown code fences to
+make syntax-highlighted text. In Paradoc, codeblocks will be rendered in the right column
+of the [split view](#looks-split-view) if the window is sufficiently wide.
 
 ~~~markdown
-```html
-<strong>Hola, mundo</strong>
+```javascript
+console.log("This", "is a log");
 ```
 ~~~
-
-#### Medium-Zoom Images
-
-Images are specified using standard markdown syntax, but they are enhanced with
-a plugin called [Medium Zoom](https://medium-zoom.francoischalifour.com/).
-
-```markdown
-![Beach](site/logo.svg)
-```
-
-![Beach](site/images/beach.jpg)
-
-> Click on the image to view a full view. Click, or scroll a small amount to
-> cause the image to animate back into place.
-
-<continueRight/>
-
 
 
 #### Blockquotes
@@ -174,11 +110,11 @@ Single quotes, double quotes, and double-hyphens are replaced to their
 
 #### `<continueRight/>`
 
-Bookmark adds an additional feature that allows a right column element to continue
+Paradoc adds an additional feature that allows a right column element to continue
 flowing.
 
 > This blockquote comes immediately after the text
-> _"Bookmark adds an additional feature that allows a right column element to
+> _"Paradoc adds an additional feature that allows a right column element to
 > continue flowing"_
 > but notice how this blockquote also continues to "flow" into the list that
 > comes after it? This is important for creating a better balance of left and
@@ -220,7 +156,7 @@ code toggle switches for viewing multiple different code samples. In this
 example, clicking on the headers (reason, javascript, ocaml) will toggle
 between different syntaxes for a particular print command.
 
-<!--DOCUSAURUS_CODE_TABS-->
+<!--CODE_TABS-->
 ```reason
 Console.log(["This", "Logs", "Reason", "Lists"]);
 Library.callSomeFunction(10, 200);
@@ -235,17 +171,17 @@ library.callSomeFunction(10, 200);
 Console.log ["This", "Logs", "Ocaml", "Lists"]
 Library.callSomeFunction 10 200;
 ```
-<!--END_DOCUSAURUS_CODE_TABS-->
+<!--END_CODE_TABS-->
 
 
 
-To create code tabs, place multiple code blocks between
-special comments as follows:
+To create code tabs, place multiple code blocks between special `CODE_TABS`
+HTML comments as follows.
 
 ````md
- <!--DOCUSAURUS_CODE_TABS-->
+ <!--CODE_TABS-->
  ... multiple code blocks go here...
- <!--END_DOCUSAURUS_CODE_TABS-->
+ <!--END_CODE_TABS-->
 
 ````
 
@@ -256,451 +192,203 @@ may give custom names to the tabs by including an HTML comment before each code
 example.
 
 
-> Note: Inferring the tab title from the code block syntax is a Bookmark feature,
-> not supported in Docusaurus.
-
-This example:
-
 ````md
- <!--DOCUSAURUS_CODE_TABS-->
-   <!--Awesome JS-->
-   ```js
-   console.log('Hello, world!');
-   ```
-   
-   <!--Python-->
-   ```py
-   print('Hello, world!')
-   ```
- <!--END_DOCUSAURUS_CODE_TABS-->
-
+ <!--CODE_TABS-->
+ <!--My JS Code Block-->
+ ...js code block...
+ <!--My Python Code Block-->
+ ...python code block...
+ <!--END_CODE_TABS-->
 ````
 
-<continueRight/>
+Note: Specifying the title from this code block syntax is a Paradoc feature,
+not supported in Docusaurus.
 
-Produces the following toggle interface:
 
-<!--DOCUSAURUS_CODE_TABS-->
+The previous example produces the following result:
 
-<!--Awesome JS-->
+<!--CODE_TABS-->
+
+<!--My JS Code Block-->
 ```js
 console.log('Hello, world!');
 ```
-<!--Python-->
+<!--My Python Code Block-->
 ```py
 print('Hello, world!')
 ```
-<!--END_DOCUSAURUS_CODE_TABS-->
+<!--END_CODE_TABS-->
 
-#### YAML Headers
 
-Bookmark parses valid YAML headers and extracts the metadata contained within them.
-YAML headers are way to pass metadata that is _not_ part of standard markdown
-to other parts of the documentation toolchain. YAML headers consist of an unlimited
-number of key/value pairs sandwiched between two `---` appearing at the start of the
-document. It must be the very first thing in the document, after the first Bookmark
-`<script>` include line.
+### UI Enhancements
+
+#### Medium-Zoom Images
+
+Images are specified using standard markdown syntax, but they are enhanced with
+a plugin called [Medium Zoom](https://medium-zoom.francoischalifour.com/).
 
 ```markdown
+![Beach](site/logo.svg)
+```
+
+![Beach](site/images/beach.jpg)
+
+> Click on the image to view a full view. Click, or scroll a small amount to
+> cause the image to animate back into place.
+
+<continueRight/>
+
+
+
+#### Buttons
+
+Include a `>` at the end of your link text (for instance: `Continue >`), to
+turn them into buttons. This is a feature from flatdoc.
+
+> [Go To Github >][github]
+
+
+### YAML Headers
+
+Paradoc parses valid key/value items from "YAML headers". These headers are
+where you specify information that applies to that entire document.  YAML
+headers consist of an unlimited number of `key:value` lines sandwiched between
+two `---` at the start of the document, immediately after the initial Paradoc
+`<script>`.
+
+You can specify any key/value pairs you like - but Paradoc will look for
+certain keys to configure your website and rendering. See [Configuring
+Pages](configuring-pages.html).
+
+
+```html
+<script src="site/Paradoc.js"></script>
 ---
-something: hey
 title: me
 description: "Hi there here is an escaped quote \" inside of quotes"
+anythingYouWant: hey
 ---
 ```
 
-#### Silent YAML Headers
 
-YAML headers are the standard way to convey metadata to various markdown
-documentation toolchains, and Bookmark will use some of that metadata as well.
-However, one downside to YAML headers is that they are also rendered as a table
-in your document when viewed in Github's markdown viewer.
-Bookmark supports an alternative ("silent") form of YAML headers embedded in
-markdown comments (markdown comments are of the form `[//]: #
-(comment-content-here)`.
+### Multi-Doc Pages
 
-The previous example would be written at the very start of the Bookmark document
-(after the script include) as follows:
+To add another doc page, have an existing page specify the new page as its
+`nextPage:` in the [Page Header](#page-headers) . Then make sure that new page
+actually exists, and has the Paradoc script include as usual.
+
+> Note: All pages should also supply a `rootPage:` header property that
+> specifies the "first page" in the list.
+
+The following header specifies that the next markdown page should be
+`my-next-page.html`, and that the starting "root page" should be `README.html`.
 
 
-```markdown
-[//]: # (---)
-[//]: # (something: hey)
-[//]: # (title: me)
-[//]: # (description: "Hi there here is an escaped quote \" inside of quotes")
-[//]: # (---)
+```html
+<script src="site/Paradoc.js"></script>
+---
+title: me
+nextPage: my-next-page
+rootPage: readme
+---
 ```
 
+<continueRight/>
 
-This prevents the header metadata from being rendered as a table in Github's viewer,
-but Bookmark will still extract them just as if they were YAML headers.
-The result is a single Bookmark doc that serves as a Github viewable markdown page,
-as well as powering a website.
+See how to [Add More Pages](configuring-pages.html#adding-pages)
 
 
-### Optimizing
-You can deploy this repo and serve its files with no build step. But you can
-also optimize your docs page into a single, minified `.html` file which bundles
-all of its resources *including* fonts and images! There are many benefits to
-the way Bookmark compresses your docs site into a single, shareable `.html` file.
+## Search Features
+
+Paradoc supports _offline_ search across all of the documents that are
+[added](configuring-pages.html#adding-pages). No build steps or servers are
+required to search, and no subscriptions to search services are required.
+Content is searched interactively while authoring docs locally, when users
+consume your deployed site, and when users save local copies of your deployed
+site to disk.
+
+
+#### Offline Search
+- Press the <kbd>/</kbd> key and start typing.
+- Searches across multiple pages.
+- No server, no build steps.
+
+
+#### Keyboard Interactions
+
+| Keyboard                                                             | Action                                       |
+|--------------------------------------------------------------------- |----------------------------------------------|
+| <kbd>/</kbd>                                                         | Focus the Search input                       |
+| <kbd>Esc</kbd>                                                       | Close search results and blur search input   |
+| <kbd>Ctrl+c</kbd> or <kbd>Ctrl+\[</kbd>                              | Toggle search results open when focused      |
+| <kbd>Down</kbd> or <kbd>Ctrl+n</kbd>                                 | When results open, move up / down in results |
+| <kbd>Up</kbd> or <kbd>Ctrl+p</kbd>                                   | When results open, move up / down in results |
+| <kbd>Enter</kbd> or Click                                            | Go to currently selected result              |
+
+
+## Change Resistant Deep Linking
+
+All content in Paradoc pages can be "deep linked" to. This means that you can
+create a url link to a specific paragraph, code sample, or table row (not just
+the headers).
+
+These links are "change resistant", meaning that the content can be moved to another location
+in the document, and all the links that have proliferated on the internet will still work correctly.
+
+It also means that the contents that are linked can be changed (fixing typos,
+refactoring sentence structure), and all proliferated links to that specific
+content will still usually work (up to a certain amount of changes).
+
+This works by creating a text fingerprint of the content and when loading the
+page, finding the content that most closely matches that fingerprint in the
+url. Even if the text has changed changes Paradoc will find the best match
+possible.
+
+###### Try It Out
+
+Hit <kbd>/</kbd> to search for anything, and hit enter on a search result. Then
+copy/paste the url into a new browser window. The search results encode the
+change resistant deep link in the url, and you can share that specific search
+result with anyone or link to it from a blog while feeling confident your links
+won't break.
+
+
+## Deploying
+
+### Easy Optimizing With Chrome
+
+Just "Save As" in Chrome, select "Complete Webpage" to generated an optimized,
+pre-rendered version of the site with all docs served as a single page application
+with working online/offline search.
+
+### Packing Into A Single `.html` file.
+"Save As" in Chrome generates an optimized rendered build of your website as a
+single page application, but it will generate a folder with assets/styles and
+images for your docs to be distributed/deployed along with your main html page.
+You can take it even further also optimize your docs page into a single,
+minified `.html` file which bundles all of its resources *including* fonts and
+images! There are many benefits to the way Paradoc compresses your docs site
+into a single, shareable `.html` file.
 
 ```
 cd site
 npm install
-npm run bundle
-# Now deploy index.html
+node ./Paradoc.js ../readme.html
 ```
 
-- Bookmark prerenders at build time instead of page load time (faster loading).
-- A single web request for the entire page.
+Now you can deploy `../readme.bookmark-inlined.html` as a single file to any
+web host, and it will operate as a single page application.
+
+With this mode:
+- Paradoc prerenders at build time instead of page load time (faster loading).
+- The document is served as a single web request.
 - Easily send the docs as an attachment in Discord/Messenger chat thread.
 - Save your online docs using the browser's '"Save As"
-- Bookmark makes sure your page looks exactly the same on anyone's computer,
+- Paradoc makes sure your page looks exactly the same on anyone's computer,
   including the fonts.
 
-## Search Features
-
-Bookmark supports offline search of the current document. See the Bookmark
-[API](#api) for how to instantiate it with the right information about
-where your search form lives on the page.
-
-### Keyboard Interactions
-
-| Keyboard                                                                              | Action                                       |
-|-------------------------------------------------------------------------------------- |----------------------------------------------|
-| <kbd>/</kbd>                                                                          | Focus the Search input                       |
-| <kbd>Esc</kbd>                                                                        | Close search results and blur search input   |
-| <kbd>Ctrl+c</kbd> _or_ <kbd>Ctrl+[</kbd>                                              | Toggle search results open when focused      |
-| <kbd>Down</kbd> _or_ <kbd>Ctrl+n</kbd>                                                | When results open, move up / down in results |
-| <kbd>Up</kbd> _or_ <kbd>Ctrl+p</kbd>                                                  | When results open, move up / down in results |
-| <kbd>Enter</kbd> _or_ Click                                                           | Go to currently selected result              |
-
-
-
-## API
-
-The following describe the properties accepted on the `Bookmark` constructor
-which should be initialized in your main HTML `index.dev.html` or template.
-
-```js
-Bookmark.go({
-  stylus: stylusConfig,
-  doc: docConfig,
-  highlight: highlightConfig,
-  slugify: slugifyConfig,
-  slugContributions: slugifyConfig,
-  sideNavify: sideNavifyConfig,
-  searchFormId: searchFormId,
-  searchHitsId: searchHitsId,
-});
-```
-
-###### `stylus:`
-The path(s) to stylus configuration(s). May either be a string or an array of
-strings. Each string must be the path to a valid Bookmark compatible [stylus
-configuration](#styles) (Stylus files with the special script include on the
-first line).
-
-```javascript
-Bookmark.go({
-  stylus: './theme-white/theme.styl.html',
-  ...
-});
-```
-
-###### `doc:`
-The path(s) to Bookmark doc(s). May either be a string or an array of strings.
-Each string must be the path to a valid Bookmark compatible [doc ](#doc) files
-(markdown files with the special script include on the first line).
-
-```javascript
-Bookmark.go({
-  stylus: './theme-white/theme.styl.html',
-  ...
-});
-```
-
-
-###### `slugify:`
-
-Describes which header elements should become slugified (linkable with a
-readable url). The default is shown below.
-```javascript
-{
-  h1: true,
-  h2: true,
-  h3: true,
-  h4: false,
-  h5: false,
-  h6: false,
-}
-
-```
-
-<continueRight/>
-
-If a header level is not slugified, its content can still partake in the slug
-content of other header levels. See [`slugContributions:`](#api-slugcontributions).
-
-###### `slugContributions:`
-
-Describes which header elements should partake in _other_, header slugs.
-For example if `h1` is marked `true`, then `<h2/>`s will have the previous
-`h1` text in their slugs. Consequently, if everything is configured `false`,
-only *that* header's text will be used to create the slug.
-Slugs are always deduped regardless of which headers are slug contributors.
-The first slug of value `name` becomes `#name` and the second becomes `#name-1`
-and so on. Enabling more slug contributions doesn't change the deduping
-behavior, it just makes deduping less necessary.
-The defaults are as follows:
-
-```javascript
-{
-  h1: true,
-  h2: true,
-  h3: true,
-  h4: false,
-  h5: false,
-  h6: false,
-}
-```
-
-<continueRight/>
-
-`slugContributions` can help you avoid breaking existing links to pages.  If
-you never had an `h1` heading, and your existing slug urls did not have any
-component for the `h1` heading, you can later add an `h1` heading without
-breaking existing links by configuring the `slugContributions`'s `h1` field to
-be `false.`
-
-The more headings you allow to partake in slugs, the more fragile your links
-will be. But the fewer headings you allow to partake in slugs, the more
-non-unique slugs you will run into (with a `-1` appended after them).
-
-###### `sidenavify:`
-
-Describes which headings will be added to the side nav. This will also cause
-the `slugify` to be activated for this heading level even if it was set to
-`false` (only slugified headings can be linked to from the side nav).
-The defaults are as follows:
-
-```javascript
-{
-  h1: true,
-  h2: true,
-  h3: true,
-  h4: false,
-  h5: false,
-  h6: false,
-}
-```
-
-
-## Customizing
-
-### Add Files
-
-You can add more markdown docs (using the `.md.html`) or [Stylus](stylus) files
-(using the `.styl.html` extension).  Then just add it to the list of files
-loaded in `index.dev.html`'s script tag. The `doc` and `stylus` options accept
-an array of paths.
-
-```html
-<script>
-Bookmark.go({
-  stylus: ["./path/to/YourStyle.styl.html"],
-  doc: ["./path/to/YourDoc.md.html"]
-});
-</script>
-```
-<continueRight/>
-
-- Stylus files should have the `.styl.html` extension, and be included in the
-  `stylusFetcher:`.
-- Markdown files shoud have the `.md.html` extension and be included in the
-  `fetcher:`
-
-
-### Highlighting
-
-Bookmark includes a vendored [hljs](hljs), and it is enabled by default in the main
-script tag in `index.dev.html` that runs `Bookmark`. `hljs` is by default configured
-to be the highlighter, and you can customize this.
-
-
-```html
-<script>
-Bookmark.go({
-  stylus: ...,
-  doc: ...,
-  highlight: (txt, lan) =>
-    hljs.highlight(lan, txt).lan;
-});
-</script>
-```
-
-
-### Fonts
-Bookmark comes with two vendored fonts.
-
-- [`fonts/CodingFont.css`](./fonts/CodingFont.css): a css inlined font named
-  `CodingFont`
-- [`fonts/WordFont.css`](./fonts/WordFont.css) a css inlined font named
-  `WordFont`
-
-These two font names are referenced in
-[`theme-white/theme.styl.html`](theme-white/theme.styl.html). `CodingFont` is
-actually `Fira`, and `WordFont` is actually `Roboto`, but they have been
-renamed. See their respective licenses in [fonts/](./fonts).
-
-### Customizing Font
-You can either replace `CodingFont` and `WordFont` with two css files that
-contain your desired fonts, but rename those fonts to be
-`CodingFont`/`WordFont` respectively. This would work well if you are replacing
-those fonts with an open licensed font.
-
-If you want to use a proprietary font when publishing your page online, but
-want to keep your documentation open source, Bookmark also supports a "layered"
-approach. Two additional custom fonts (`PrivateCodingFont` and
-`PrivateWordFont`) are automatically prioritized if they are present in the
-repo.
-
-- [`fonts/PrivateCodingFont.css`](./fonts/PrivateCodingFont.css), if present,
-  should define a css inlined font named `PrivateCodingFont`.
-- [`fonts/PrivateWordFont.css`](./fonts/PrivateWordFont.css), if present,
-  should define a css inlined font named `PrivateWordFont`.
-
-These allow you to keep the `CodingFont`/`WordFont` in a public Github repo,
-but then locally define these private fonts which are never pushed publicly to
-a repo. This allows you to easily open source every part of your docs site
-except private fonts, which you personally use locally, and will push to
-production.
-
-Once you create the propper css files in those locations that define fonts
-named `PrivateCodingFont` and `PrivateWordFont` respectively, those fonts will
-be used to render code examples and text respectively, otherwise the included
-`CodingFont` and `WordFont`  fonts will be used as a fallback.
-
-Note: These private fonts are not present in this github repo, but you may
-populate them with your custom fonts as follows:
-
-#### Creating Font Files:
-
-**Creating Your Own Private Font Files:**
-To create your own `PrivateCodingFont.css`/`PrivateWordFont.css` use a site
-like [https://transfonter.org/](tranfonter.org) to turn your prefered fonts
-into inlined CSS fonts (Select `woff`, and select the `base64` option). Then
-edit the resulting CSS file to change the name of the font to
-`PrivateCodingFont` or `PrivateWordFont` and place them at
-[`./fonts/PrivateCodingFont.css`](./fonts/PrivateCodingFont.css) and
-[`./fonts/PrivateWordFont.css`](./fonts/PrivateWordFont.css) respectively.
-
-## Integration
-
-### Github README
-This example project is already setup so that the main `README` file will
-render as the Github project's README without any extra configuration. If you
-copied this project as your starter, then your project is probably already
-setup to render this main `README.html` file as the Github project README.
-
-- Make sure you don't have some other `README.md` file in your repo that would
-  take precedence over the `README.html`.
-- Make sure your main doc page is named `README.html` and is located in your project root.
-- Make sure `index.dev.html` loads `README.html` (it does by default).
-- Change the first line of the `README.html` to be more than just a simple script tag.
-
-Instead of `<script src="site/Bookmark.js"></script>`, make sure it is:
-
-```markdown
-[ vim: set filetype=Markdown: ]: # (<script src="site/Bookmark.js"></script>)
-Your markdown here
-as always
-```
-
-<continueRight/>
-
-That line in a file named `README.html` accomplishes the following:
-
-1. When you edit it in Vim it will detect the filetype as markdown.
-2. When you view the file in Github it will render it as markdown instead of
-   plain text (Github detects vim settings)
-3. The script will load when you are loading the html file as a doc page in
-   Bookmark.
-4. The entire first line is entirely hidden when viewing the file as markdown
-   in Github so it doesn't clutter up the Github viewing experience.
-
-> How Does This Work? You don't need to care about this, but if you're curious,
-> that syntax is actually a markdown link definition, with the link name
-> between the `[ ]`. The name can be anything, and we've named it to something
-> that tells both Vim and Github to treat the file as markdown regardless of
-> the file extension. The contents after `#` are the link _location_ which can
-> also be nearly anything, and we've set it to the script tag that needs to be
-> loaded in any markdown doc file.
-
-#### Alternative line:
-
-Alternatively you could use the following line, with the only difference being
-that the `.html` file will automatically be detected as markdown in Emacs
-instead of Vim:
-
-```markdown
-[-*-mode:markdown-*-]: # (<script src="site/Bookmark.js"> </script>)
-```
-
-#### `.gitattributes` Approach:
-TODO:
 
 ## More
-
-### How It Works
-
-`README.md.html` is both a valid html page and a valid markdown page. Because
-browsers allow loading of html pages in iframes across origins, no web server
-is needed to develop and reload docs entirely in the browser without a build
-step/web server.
-
-`README.md.html` looks like:
-
-```markdown
-<script src="site/Bookmark.js"></script>
-Everything _after_ the first line is
-plain **markdown**.
-1. Nothing needs to be escaped.
-2. Not even if your markdown contains
-  a `<script>` tag.
-```
-<continueRight/>
-
-Everything after the first line is plain markdown. There is nothing special you
-need to do to your markdown even though it is in an `.html` file. You can
-include literally any markdown after that first script tag line, and you don't
-have to escape any of it. The browser won't even think you're starting a script
-region if you include a `<script>` tag somewhere after the first line. How?
-It's a wonderful hack. The inclusion of the first `Bookmark.js` script forces
-the rest of the document to be interpreted as plain text that needn't be
-escaped.
-
-#### Safari Support:
-Safari does not interpret the encoding of files as utf-8 by default unless the
-html document has `<meta http-equiv="Content-Type" content="charset=UTF-8">` at
-the top of the file.  That means any `.html` page, or style `.html` page must
-have `<meta http-equiv="Content-Type" content="charset=UTF-8">` at the top, if
-you want to be able to load it in Safari.  This primarily effects development
-mode because normally you would perform a build of the site before deploying
-it, where the encoding issue doesn't come up.
-
-A complete markdown html file header that serves as a Github markdown page, can
-be loaded in Chrome *and* Safari just by double clicking it, and automatically
-detected as markdown syntax in Vim would look like:
-
-```markdown
-<meta http-equiv="Content-Type" content="charset=UTF-8">
-
-[ vim: set filetype=Markdown: ]: # (<script  charset="UTF-8" src="site/Bookmark.js"> </script>)
-```
-
-> Note: Make sure there is a space between the two (this makes sure github
-> markdown rendering works correctly).
 
 #### Issues:
 You must only load markdown html files that you authored and trust. Currently,
@@ -711,7 +399,6 @@ before injecting it into the DOM.
 ### Acknowledgements
 See [ORIGINS.md](./ORIGINS.md) for links and licenses of various
 components that are embedded in this project.
-
 
 
 
