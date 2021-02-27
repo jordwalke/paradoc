@@ -432,8 +432,8 @@ var getLink = function (originallyRenderedPageKey, originallyRenderedAtUrl, curr
       hrefBasename;
     // This is just the file portion.
     var urlBasenameRootLowerCase = hrefExtensionlessBasename.toLowerCase();
-    urlBasenameRootLowerCase = urlBasenameRootLowerCase.replace(".bookmark-rendered", "");
-    urlBasenameRootLowerCase = urlBasenameRootLowerCase.replace(".bookmark-inlined", "");
+    urlBasenameRootLowerCase = urlBasenameRootLowerCase.replace(".paradoc-rendered", "");
+    urlBasenameRootLowerCase = urlBasenameRootLowerCase.replace(".paradoc-inlined", "");
     asEmbeddedSubpageOf = urlBasenameRootLowerCase;
   }
 
@@ -1948,8 +1948,8 @@ if (MODE === "bookmarkNodeMode") {
       " --headless --dump-dom --virtual-time-budget=400";
     var rendered = require("child_process").execSync(cmd).toString();
 
-    var renderedHtmlPath = absFilePath + ".paradoc-rendered.html";
-    var indexHtmlPath = absFilePath + ".paradoc-inlined.html";
+    var renderedHtmlPath = absFilePath.replace('.html', '') + ".paradoc-rendered.html";
+    var indexHtmlPath = absFilePath.replace('.html', '') + ".paradoc-inlined.html";
     fs.writeFileSync(renderedHtmlPath, rendered);
 
     console.log("INLINING PAGE: ", indexHtmlPath);
@@ -4624,6 +4624,10 @@ if (MODE === "bookmarkNodeMode") {
           hierarchicalDoc: hierarchicalDoc,
         };
       }
+      $('.bookmark-content.page').each(function(index, node) {
+        var pageKey = node.dataset.pageKey;
+        runner.pageState[pageKey] = Flatdoc.emptyPageData(pageKey);
+      });
       runner.pageState = mapKeys(runner.pageState, function (data, pageKey) {
         return findAndSlugifyExperience(pageKey, data);
       });
@@ -4640,9 +4644,10 @@ if (MODE === "bookmarkNodeMode") {
 
         // TODO
         var premangledContent = $("<div>" + marked(markdownAndHeader.markdown) + "</div>");
-        var pageClassName = "page-" + pageKey;
+        var pageClassName = "page page-" + pageKey;
         var containerForPageContent = document.createElement("div");
         containerForPageContent.className = "bookmark-content " + pageClassName;
+        containerForPageContent.dataset.pageKey = pageKey;
         if (markdownAndHeader.headerProps.title) {
           var titleForPage = document.createElement("h0");
           titleForPage.className = "bookmark-content-title " + pageClassName;
