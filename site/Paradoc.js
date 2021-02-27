@@ -1944,12 +1944,12 @@ if (MODE === "bookmarkNodeMode") {
     var cmd =
       pathToChrome +
       " " +
-      path.join(siteDir, "..", "what-and-why.html") +
+      absFilePath +
       " --headless --dump-dom --virtual-time-budget=400";
     var rendered = require("child_process").execSync(cmd).toString();
 
-    var renderedHtmlPath = path.join(siteDir, "..", "what-and-why.bookmark-rendered.html");
-    var indexHtmlPath = path.join(siteDir, "..", "what-and-why.bookmark-inlined.html");
+    var renderedHtmlPath = absFilePath + ".paradoc-rendered.html";
+    var indexHtmlPath = absFilePath + ".paradoc-inlined.html";
     fs.writeFileSync(renderedHtmlPath, rendered);
 
     console.log("INLINING PAGE: ", indexHtmlPath);
