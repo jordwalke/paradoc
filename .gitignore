@@ -11,3 +11,6 @@ site/index.rendered.html
 site/fonts/PrivateCodingFont.css
 site/fonts/PrivateWordFont.css
 site/node_modules
+Design
+.DS_Store
+*/.DS_Store
