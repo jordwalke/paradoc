@@ -4617,7 +4617,14 @@ if (MODE === "bookmarkNodeMode") {
           markdownAndHeader: {
             // We don't retain the original markdown on prerendered pages.
             markdown: null,
-            headerProps: { title: title, subtitle: subtitle },
+            headerProps: {
+              title: title,
+              subtitle: subtitle,
+              title: contentContainerNode.dataset.title,
+              subtitle: contentContainerNode.dataset.subtitle,
+              hideInSearch: contentContainerNode.dataset.hideInSearch,
+              hideInNav: contentContainerNode.dataset.hideInNav
+            },
           },
           contentContainerNode: contentContainerNode,
           menuContainerNode: menuContainerNode,
@@ -4648,6 +4655,10 @@ if (MODE === "bookmarkNodeMode") {
         var containerForPageContent = document.createElement("div");
         containerForPageContent.className = "bookmark-content " + pageClassName;
         containerForPageContent.dataset.pageKey = pageKey;
+        containerForPageContent.dataset.title = markdownAndHeader.headerProps.title;
+        containerForPageContent.dataset.subtitle = markdownAndHeader.headerProps.subtitle;
+        containerForPageContent.dataset.hideInSearch = markdownAndHeader.headerProps.hideInSearch;
+        containerForPageContent.dataset.hideInNav = markdownAndHeader.headerProps.hideInNav;
         if (markdownAndHeader.headerProps.title) {
           var titleForPage = document.createElement("h0");
           titleForPage.className = "bookmark-content-title " + pageClassName;
