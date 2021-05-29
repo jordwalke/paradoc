@@ -36,6 +36,16 @@ HLJS is vendored in support/vendor/ along with all of its out of the box css
 styles.  hljs is licensed under BSD 3-Clause License and the license can be
 found in its repo [here](https://github.com/highlightjs/highlight.js).
 
+#reasonml-highlightjs
+
+site/vendor/reason-highlightjs.js is from (MIT)
+https://raw.githubusercontent.com/reasonml-editor/reason-highlightjs/master/index.js
+
+`site/vendor/highlight-styles/atom-one-light.css`
+`site/vendor/highlight-styles/xcode.min.css`
+From highlightjs repo. (See its original license)
+
+
 
 # marked
 Flatdoc vendors marked (markdown parsing library) inside of flatdoc.js

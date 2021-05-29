@@ -30,15 +30,16 @@
   <!--<script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script> -->
   
   <script src='site/vendor/jquery.js'></script>
+  
   <!-- You are required to add the attribute fromSiteTemplate when loading the Bookmark script from a site template -->
   <script charset="UTF-8" fromSiteTemplate src="site/Paradoc.js"> </script>
 
   <!-- fonts -->
   <!-- if including a private coding font/word font, remove the non-private one from document after rendering to avoid bundling it -->
   <script class="removeFromRenderedPage" src='site/vendor/highlight.pack.js'></script>
+  <script class="removeFromRenderedPage" src='site/vendor/reason-highlightjs.js'></script>
   <script src='site/vendor/medium-zoom.js'></script>
   <script class="removeFromRenderedPage" src='site/vendor/stylus.min.js'></script>
-  <link  href='site/vendor/highlight-styles/xcode.min.css' rel='stylesheet'>
   <link href='./site/fonts/WordFont.css' rel='stylesheet'>
   <link href='./site/fonts/PrivateCodingFont.css' rel='stylesheet'>
   <link href='./site/fonts/CodingFont.css' rel='stylesheet'>
@@ -49,44 +50,41 @@
   <meta content="${Bookmark.Header.description|Description}" name="description">
   <meta content="${Bookmark.Header.description|Description}" property="og:description">
 </head>
-<body class='big-h3 large-brief'>
+<body class='paradoc-hljs big-h3 large-brief'>
   <script>
     document.body.style="visibility:hidden"
   </script>
 
+  <center>
   <div id="mock-demo" class="nodisplay-true mock-demo">
-    <div class="swatch">
-      <div class="bg-prim-1 color"></div> <div class="bg-prim-2 color"></div> <div class="bg-prim-3 color"></div> <div class="bg-prim-4 color"></div>
-      <div class="bg-prim color"></div> <div class="bg-prim-6 color"></div> <div class="bg-prim-7 color"></div> <div class="bg-prim-8 color"></div>
-      <div class="bg-prim-9 color"></div> <div class="bg-prim-10 color"></div> <div class="bg-prim-11 color"></div> <div class="bg-prim-12 color"></div>
-      <div class="bg-prim-13 color"></div> <div class="bg-prim-14 color"></div> <div class="bg-prim-15 color"></div> <div class="bg-prim-16 color"></div>
-      <div class="bg-prim-17 color"></div>
-    </div>
-    <div class="swatch">
-      <div class="bg-prim-desat-1 color"></div> <div class="bg-prim-desat-2 color"></div> <div class="bg-prim-desat-3 color"></div> <div class="bg-prim-desat-4 color"></div>
-      <div class="bg-prim-desat color"></div> <div class="bg-prim-desat-6 color"></div> <div class="bg-prim-desat-7 color"></div> <div class="bg-prim-desat-8 color"></div>
-      <div class="bg-prim-desat-9 color"></div> <div class="bg-prim-desat-10 color"></div> <div class="bg-prim-desat-11 color"></div> <div class="bg-prim-desat-12 color"></div>
-      <div class="bg-prim-desat-13 color"></div> <div class="bg-prim-desat-14 color"></div> <div class="bg-prim-desat-15 color"></div> <div class="bg-prim-desat-16 color"></div>
-      <div class="bg-prim-desat-17 color"></div> </div>
-    <div class="swatch">
-      <div class="bg-lowlight-1 color"></div> <div class="bg-lowlight-2 color"></div> <div class="bg-lowlight-3 color"></div> <div class="bg-lowlight-4 color"></div>
-      <div class="bg-lowlight color"></div> <div class="bg-lowlight-6 color"></div> <div class="bg-lowlight-7 color"></div> <div class="bg-lowlight-8 color"></div>
-      <div class="bg-lowlight-9 color"></div> <div class="bg-lowlight-10 color"></div> <div class="bg-lowlight-11 color"></div> <div class="bg-lowlight-12 color"></div>
-      <div class="bg-lowlight-13 color"></div> <div class="bg-lowlight-14 color"></div> <div class="bg-lowlight-15 color"></div> <div class="bg-lowlight-16 color"></div>
-      <div class="bg-lowlight-17 color"></div>
-    </div>
-    <div class="swatch">
-      <div class="bg-lowlight-desat-1 color"></div> <div class="bg-lowlight-desat-2 color"></div> <div class="bg-lowlight-desat-3 color"></div> <div class="bg-lowlight-desat-4 color"></div>
-      <div class="bg-lowlight-desat color"></div> <div class="bg-lowlight-desat-6 color"></div> <div class="bg-lowlight-desat-7 color"></div> <div class="bg-lowlight-desat-8 color"></div>
-      <div class="bg-lowlight-desat-9 color"></div> <div class="bg-lowlight-desat-10 color"></div> <div class="bg-lowlight-desat-11 color"></div> <div class="bg-lowlight-desat-12 color"></div>
-      <div class="bg-lowlight-desat-13 color"></div> <div class="bg-lowlight-desat-14 color"></div> <div class="bg-lowlight-desat-15 color"></div> <div class="bg-lowlight-desat-16 color"></div>
-      <div class="bg-lowlight-desat-17 color"></div>
-    </div>
-    <div class="swatch">
-      <div class="button prim" tabindex=0>Button</div>
-      <div class="button" tabindex=0>Button</div>
-    </div>
     <script>
+      var colors = ['pink', 'purple', 'red', 'yellow', 'green', 'blue', 'br', 'prim', 'prim-desat', 'low', 'low-desat'];
+      var buttons = [];
+      for(var k = 0; k < colors.length; k++) {
+        var color = colors[k];
+        var swatch = document.createElement('div');
+        if(color.indexOf('-desat') === -1) {
+          var button = document.createElement('div');
+          button.className = 'button ' + (color === 'br' ? '' : color);
+          button.tabIndex = 0;
+          button.textContent = (color === 'br' ? 'default' :color);
+          buttons.push(button);
+        }
+        swatch.className = 'swatch';
+        if(color !== 'br') {
+          for(var j = 1; j <= 17; j++) {
+            var clr = document.createElement('div');
+            clr.className = 'color bg-' + color + '-' + j;
+            swatch.appendChild(clr);
+          }
+        }
+        window['mock-demo'].appendChild(swatch);
+      }
+      var buttonSwatch = document.createElement('div');
+      buttonSwatch.className = 'swatch';
+      buttons.forEach(function(btn) {buttonSwatch.appendChild(btn);});
+      window['mock-demo'].appendChild(swatch);
+      window['mock-demo'].appendChild(buttonSwatch);
       window.addEventListener('keydown',  function(e) {
         if((e.ctrlKey || e.metaKey) && e.shiftKey && e.keyCode == 'P'.charCodeAt(0)){
           e.preventDefault();
@@ -100,6 +98,7 @@
     });
     </script>
   </div>
+  </center>
   <!-- This is just a dummy resource node so that we substitute templates that
     refer to these resources even if the page is compressed/saved as a bundle.
     Otherwise, compressers cannot determine that the resource referred to in
@@ -169,6 +168,9 @@
   <div id="the-search-hits"></div>
   <div class='bookmark-content-root'></div>
 <!-- Initializer -->
+<script class="removeFromRenderedPage">
+  hljs.registerLanguage('reasonml', reasonmlHighlightJs);
+</script>
 <script>
   Bookmark.go({
     stylus: './site/theme.styl.html',
@@ -176,7 +178,8 @@
     highlight: function (code, value) {
       return hljs.highlight(
         value === 'reason' ? 'javascript' :
-        value === 'json' ? 'javascript' : value,
+        value === 'json' ? 'javascript' :
+        value.indexOf('{#') === 0 ? 'javascript' : value,
         code
       ).value;
     },
