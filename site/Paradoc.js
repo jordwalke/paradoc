@@ -4810,20 +4810,58 @@ if (MODE === "bookmarkNodeMode") {
         if(err) {
           console.error("[Flatdoc] fetching Markdown data failed for page:" + pageKey + ".", err);
         } else {
-          // If we encounter a next page that hasn't been fetched yet, fetch it.
-          var exploreKey =
-            (data.headerProps.nextPage && !runner.pageState[data.headerProps.nextPage]) ? data.headerProps.nextPage :
-            (data.headerProps.rootPage && !runner.pageState[data.headerProps.rootPage]) ? data.headerProps.rootPage : null;
-          if(data.headerProps.nextPage === pageKey) {
-            console.error('Page ' + newPageKey + ' has set itself as the "nextPage". Fix this.');
+          var headerProps = data.headerProps;
+          if (headerProps.rootPage && headerProps.nextPage) {
+            console.error(
+              "Both `rootKey` and `nextPage` are available.\n" +
+              "`rootKey` will be used as pages exploration method.\n" +
+              "Please remove `nextPage` or `rootKey`"
+            );
           }
-          if(exploreKey) {
-            var newPageKey = exploreKey.toLowerCase();
-            var newPageState = Flatdoc.emptyPageData(newPageKey);
-            runner.pageState[newPageKey] = newPageState;
-            runner.pageState = ensureKeyValOrderCircular(runner.pageState, pageKey, newPageKey);
-            Flatdoc.setFetcher(newPageKey, runner.pageState[newPageKey]);
-            fetchOne(runner.pageState[newPageKey].fetcher, handleFetchDone.bind(null, newPageKey));
+          // Only rootPage should have pages
+          if (headerProps.pages) {
+            var pages = headerProps.pages.trim().split(",").map((s) => s.trim());
+            var cachedPageState = runner.pageState;
+            var pagesToFetch = [];
+            runner.pageState = {};
+            // This ensure correct order of pages according to `headerProps.pages`
+            pages.forEach((key) => {
+              if (cachedPageState[key]) {
+                runner.pageState[key] = cachedPageState[key]
+              } else {
+                runner.pageState[key] = Flatdoc.emptyPageData(key);
+                Flatdoc.setFetcher(key, runner.pageState[key]);
+                pagesToFetch.push(key);
+              }
+            });
+            pagesToFetch.forEach((key) => {
+              fetchOne(runner.pageState[key].fetcher, handleFetchDone.bind(null, key));
+            })
+          } 
+          // If currentPage has `rootPage` and it wasn't fetched yet
+          else if (headerProps.rootPage && !runner.pageState[headerProps.rootPage]) {
+            var key = headerProps.rootPage;
+            runner.pageState[key] = Flatdoc.emptyPageData(key);
+            Flatdoc.setFetcher(key, runner.pageState[key]);
+            fetchOne(runner.pageState[key].fetcher, handleFetchDone.bind(null, key));
+          } 
+          // Explore new pages via `nextpage`
+          else {
+            // If we encounter a next page that hasn't been fetched yet, fetch it.
+            var exploreKey = 
+              (data.headerProps.nextPage && !runner.pageState[data.headerProps.nextPage]) ? data.headerProps.nextPage :
+              (data.headerProps.rootPage && !runner.pageState[data.headerProps.rootPage]) ? data.headerProps.rootPage : null;
+            if(data.headerProps.nextPage === pageKey) {
+              console.error('Page ' + newPageKey + ' has set itself as the "nextPage". Fix this.');
+            }
+            if(exploreKey) {
+              var newPageKey = exploreKey.toLowerCase();
+              var newPageState = Flatdoc.emptyPageData(newPageKey);
+              runner.pageState[newPageKey] = newPageState;
+              runner.pageState = ensureKeyValOrderCircular(runner.pageState, pageKey, newPageKey);
+              Flatdoc.setFetcher(newPageKey, runner.pageState[newPageKey]);
+              fetchOne(runner.pageState[newPageKey].fetcher, handleFetchDone.bind(null, newPageKey));
+            }
           }
         }
         handleDones();
