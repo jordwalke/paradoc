@@ -4786,8 +4786,6 @@ if (MODE === "bookmarkNodeMode") {
         }
       }
 
-      
-
       var fetchOne = function (fetcher, cb) {
         fetcher(function (err, md) {
           if (err) {
@@ -4820,6 +4818,7 @@ if (MODE === "bookmarkNodeMode") {
           }
           // Only rootPage should have pages
           if (headerProps.pages) {
+            /** @type {Array<string>} */
             var pages = headerProps.pages.trim().split(",").map((s) => s.trim());
             var cachedPageState = runner.pageState;
             var pagesToFetch = [];
@@ -4845,8 +4844,8 @@ if (MODE === "bookmarkNodeMode") {
             Flatdoc.setFetcher(key, runner.pageState[key]);
             fetchOne(runner.pageState[key].fetcher, handleFetchDone.bind(null, key));
           } 
-          // Explore new pages via `nextpage`
-          else {
+          // Explore new pages via `nextpage` should only be activated when `rootPage` isn't available
+          else if (!headerProps.rootPage && headerProps.nextPage) {
             // If we encounter a next page that hasn't been fetched yet, fetch it.
             var exploreKey = 
               (data.headerProps.nextPage && !runner.pageState[data.headerProps.nextPage]) ? data.headerProps.nextPage :
