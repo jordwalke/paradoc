@@ -4667,6 +4667,7 @@ if (MODE === "bookmarkNodeMode") {
           var markdownAndHeader = parseYamlHeader(markdownNormalizedYaml, window.location.pathname);
           // Parse out the YAML header if present.
           var data = markdownAndHeader;
+          data.linkText = data.linkText || kebabToWords(pageKey);
           cb(err, data);
         });
       };
