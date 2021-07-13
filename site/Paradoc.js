@@ -4673,6 +4673,7 @@ if (MODE === "bookmarkNodeMode") {
       var alreadySpecifiedPageKeys = Object.keys(runner.pageState);
       var handleFetchDone = function (pageKey, err, data) {
         console.log('handling fetch done', pageKey);
+        data.headerProps.linkText = data.headerProps.linkText || kebabToWords(pageKey);
         runner.pageState[pageKey].markdownAndHeader = data;
         if(err) {
           console.error("[Flatdoc] fetching Markdown data failed for page:" + pageKey + ".", err);
